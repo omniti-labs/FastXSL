@@ -28,12 +28,16 @@
 #include <libxml/xmlIO.h>
 #include <libxml/xinclude.h>
 #include <libxml/catalog.h>
+#include <libxml/xpathInternals.h>
+#include <libxml/xpath.h>
 #include <libxslt/xslt.h>
 #include <libxslt/xsltInternals.h>
 #include <libxslt/transform.h>
 #include <libxslt/xsltutils.h>
 
+#ifdef FASTXSL_MM
 #include <mm.h>
+#endif
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -59,12 +63,17 @@ SS_Wrapper_Alloc(int shared TSRMLS_DC)
 	php_ss_wrapper *wrapper;
 
 	if (shared) {
+#ifdef FASTXSL_MM
 		if (shared == FASTXSL_SHARED_ALLOC) {
 			wrapper = (php_ss_wrapper *) mm_calloc(FASTXSL_G(cache)->mm, 1, sizeof(php_ss_wrapper));
 		} else {
 			wrapper = (php_ss_wrapper *) calloc(1, sizeof(php_ss_wrapper));
 		}
 		wrapper->persistant = 1;
+#else
+        wrapper = (php_ss_wrapper *) calloc(1, sizeof(php_ss_wrapper));
+        wrapper->persistant = 1;
+#endif
 	} else {
 		wrapper = (php_ss_wrapper *) calloc(1, sizeof(php_ss_wrapper));
 	}
@@ -86,6 +95,7 @@ static xmlMallocFunc  malloc_ptr;
 static xmlReallocFunc realloc_ptr;
 static xmlStrdupFunc  strdup_ptr;
 
+#ifdef FASTXSL_MM
 static void
 ShmCache_Free(void *ptr)
 {
@@ -161,6 +171,7 @@ ShmCache_Strdup(const char *string)
 
 	return newstring;
 }
+#endif
 
 static void
 Php_Free(void *ptr)
@@ -186,11 +197,13 @@ Php_Strdup(const char *string)
 	return estrdup(string);
 }
 
+#ifdef FASTXSL_MM
 static void
 ShmCache_UseAllocationFunctions(void)
 {
 	xmlMemSetup(ShmCache_Free, ShmCache_Malloc, ShmCache_Realloc, ShmCache_Strdup);
 }
+#endif
 
 static void
 Php_UseAllocationFunctions(void)
@@ -204,6 +217,7 @@ Xml_UseAllocationFunctions(void)
 	xmlMemSetup(free_ptr, malloc_ptr, realloc_ptr, strdup_ptr);
 }
 
+#ifdef FASTXSL_MM
 static php_ss_wrapper *
 ShmCache_Stylesheet_ParseAndStore(char *filename, size_t filename_len, int mtime TSRMLS_DC)
 {
@@ -249,13 +263,14 @@ ShmCache_Stylesheet_Delete(char *filename, size_t filename_len)
 		ShmCache_Stylesheet_Free(wrapper);
 	}
 }
+#endif
 
 static php_ss_wrapper *
 PrmCache_Stylesheet_ParseAndStore(char *filename, size_t filename_len, int mtime)
 {
 	php_ss_wrapper *wrapper;
 
-	wrapper = SS_Wrapper_Alloc(FASTXSL_PRM_ALLOC TSRMLS_CC);
+	wrapper = (php_ss_wrapper *) SS_Wrapper_Alloc(FASTXSL_PRM_ALLOC TSRMLS_CC);
 
 	wrapper->ss = xsltParseStylesheetFile(filename);
 	if (!wrapper->ss) {
@@ -304,6 +319,7 @@ PHP_FUNCTION(fastxsl_prmcache_getstatistics)
 
 /* {{{ proto array fastxsl_shmcache_getstatistics(void)
    Get an array of statistics regarding the documents in the shared memory cache */
+#ifdef FASTXSL_MM
 PHP_FUNCTION(fastxsl_shmcache_getstatistics)
 {
 	php_ss_wrapper *ss_wrapper;
@@ -346,6 +362,7 @@ PHP_FUNCTION(fastxsl_shmcache_getstatistics)
 
 	mm_unlock(FASTXSL_G(cache)->mm);
 }
+#endif
 /* }}} */
 
 /* {{{ proto resource fastxsl_stylesheet_parsefile(string filename)
@@ -361,7 +378,7 @@ PHP_FUNCTION(fastxsl_stylesheet_parsefile)
 		return;
 	}
 
-	wrapper = SS_Wrapper_Alloc(0 TSRMLS_CC);
+	wrapper = (php_ss_wrapper *) SS_Wrapper_Alloc(0 TSRMLS_CC);
 	wrapper->ss = xsltParseStylesheetFile((const xmlChar *) filename);
 	if (!wrapper->ss) {
 		RETURN_FALSE;
@@ -466,6 +483,7 @@ ParseTransformParameters(zval *z_parameters, char ***parameters TSRMLS_DC)
 
 /* {{{ proto resource fastxsl_shmcache_transform(string filename, resource xmldoc[, array parameters])
    Transform a XML document, "xmldoc", by a XSL stylesheet "filename" with transform "parameters." */ 
+#ifdef FASTXSL_MM
 PHP_FUNCTION(fastxsl_shmcache_transform)
 {
 	char            **parameters = NULL;
@@ -542,6 +560,7 @@ PHP_FUNCTION(fastxsl_shmcache_transform)
 	
 	ZEND_REGISTER_RESOURCE(return_value, result_wrapper, le_fastxsl_document);
 }
+#endif
 /* }}} */
 
 /* {{{ proto resource fastxsl_prmcache_transform(string filename, resource xmldoc[, array parameters])
@@ -748,6 +767,7 @@ PHP_FUNCTION(fastxsl_nocache_tostring)
 
 /* {{{ proto string fastxsl_shmcache_tostring(string filename, resource xmldoc)
    Return the string representation of xmldoc which is the result of an XSLT transformation on filename */
+#ifdef FASTXSL_MM
 PHP_FUNCTION(fastxsl_shmcache_tostring)
 {
 	zval           *z_xd_wrapper;
@@ -780,6 +800,7 @@ PHP_FUNCTION(fastxsl_shmcache_tostring)
 		RETURN_FALSE;
 	}
 }
+#endif
 /* }}} */
 
 /* {{{ proto string fastxsl_prmcache_tostring(string filename, resource xmldoc)
@@ -820,14 +841,16 @@ function_entry fastxsl_functions[] = {
 	PHP_FE(fastxsl_stylesheet_parsefile,         NULL)
 	PHP_FE(fastxsl_xml_parsefile,                NULL)
 	PHP_FE(fastxsl_xml_parsestring,              NULL)
+#ifdef FASTXSL_MM
 	PHP_FE(fastxsl_shmcache_transform,           NULL)
+	PHP_FE(fastxsl_shmcache_tostring,            NULL)
+	PHP_FE(fastxsl_shmcache_getstatistics,       NULL)
+#endif
 	PHP_FE(fastxsl_prmcache_transform,           NULL)
 	PHP_FE(fastxsl_nocache_transform,            NULL)
 	PHP_FE(fastxsl_nocache_profile,              NULL)
 	PHP_FE(fastxsl_nocache_tostring,             NULL)
-	PHP_FE(fastxsl_shmcache_tostring,            NULL)
 	PHP_FE(fastxsl_prmcache_tostring,            NULL)
-	PHP_FE(fastxsl_shmcache_getstatistics,       NULL)
 	PHP_FE(fastxsl_prmcache_getstatistics,       NULL)
 	{NULL, NULL, NULL}
 };
@@ -914,7 +937,9 @@ extern int xmlLoadExtDtdDefaultValue;
 /**
  * Allocators for the fl_hash storage 
  */
+#ifdef FASTXSL_MM
 static FL_Allocator mm_allocators = {ShmCache_Free, ShmCache_Malloc, ShmCache_Calloc};
+#endif
 static FL_Allocator normal_allocators = {free, malloc, calloc};
 
 static void
@@ -936,13 +961,13 @@ php_fastxsl_destroy_globals(zend_fastxsl_globals *globals)
 		if (cache->owner != getpid()) {
 			return;
 		}
-
+#ifdef FASTXSL_MM
 		mm_lock(cache->mm, MM_LOCK_RW);
 		fl_hash_free(cache->table);
 		mm_unlock(cache->mm);
 
 		mm_destroy(cache->mm);
-
+#endif
 		fl_hash_free(cache->prmtable);
 	}
 }
@@ -961,7 +986,7 @@ static void fastxsl_ext_function(xmlXPathParserContextPtr ctxt, int nargs)
 	int param_count = nargs - 1;
 	int i;
 	
-	tctxt = xsltXPathGetTransformContext(ctxt);
+	tctxt = (xsltTransformContextPtr) xsltXPathGetTransformContext(ctxt);
 	if (tctxt == NULL) {
 		xsltGenericError(xsltGenericErrorContext,
 		"fastxsl extension functions: failed to get the transformation context\n");
@@ -1074,7 +1099,7 @@ PHP_MINIT_FUNCTION(fastxsl)
 	REGISTER_INI_ENTRIES();
 	
 	le_fastxsl_stylesheet = zend_register_list_destructors_ex(SS_Wrapper_Dtor, NULL, 
-			le_fastxsl_stylesheet_name, module_number);
+	le_fastxsl_stylesheet_name, module_number);
 	le_fastxsl_document   = zend_register_list_destructors_ex(XD_Wrapper_Dtor, NULL, 
 			le_fastxsl_document_name,   module_number);
 
@@ -1086,7 +1111,7 @@ PHP_MINIT_FUNCTION(fastxsl)
 	xmlRegisterOutputCallbacks(Stream_MatchWrapper, Stream_XmlWrite_OpenWrapper, 
 			                   Stream_XmlWrite_WriteWrapper, Stream_CloseWrapper);
 	
-
+#ifdef FASTXSL_MM
 	if (!sprintf(euid, "%d", geteuid())) {
 		return FAILURE;
 	}
@@ -1108,6 +1133,7 @@ PHP_MINIT_FUNCTION(fastxsl)
 	mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RW);
 	FASTXSL_G(cache)->table = fl_hash_new(&mm_allocators, NULL);
 	mm_unlock(FASTXSL_G(cache)->mm);
+#endif
 	FASTXSL_G(cache)->prmtable = fl_hash_new(&normal_allocators, NULL);
 	
 	if(FASTXSL_G(register_functions)) {

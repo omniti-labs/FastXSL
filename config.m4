@@ -25,8 +25,19 @@ if test "$PHP_FASTXSL" != "no"; then
 
   PHP_ADD_INCLUDE($FASTXSL_DIR/include/libxml2)
   PHP_ADD_INCLUDE($FASTXSL_DIR/include)
-
-  PHP_ADD_LIBRARY_WITH_PATH(mm,   $FASTXSL_DIR/lib, FASTXSL_SHARED_LIBADD)
+  AC_MSG_CHECKING(whether to support libmm based shared template cache)
+  AC_ARG_ENABLE(libmm,
+  [  --enable-libmm Enable libmm based shared template cache],[
+    if test "$enableval" = "yes" ; then
+      AC_DEFINE(FASTXSL_MM, 1, [ ])
+      AC_MSG_RESULT(yes)
+      PHP_ADD_LIBRARY_WITH_PATH(mm,   $FASTXSL_DIR/lib, FASTXSL_SHARED_LIBADD)
+    else
+      AC_MSG_RESULT(no)
+    fi
+  ],[
+    AC_MSG_RESULT(no)
+  ])
   PHP_ADD_LIBRARY_WITH_PATH(xslt, $FASTXSL_DIR/lib, FASTXSL_SHARED_LIBADD)
   PHP_ADD_LIBRARY_WITH_PATH(xml2, $FASTXSL_DIR/lib, FASTXSL_SHARED_LIBADD)
   AC_DEFINE(HAVE_FASTXSLLIB,1,[ ])

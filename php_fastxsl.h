@@ -34,7 +34,10 @@
 #include <libxslt/transform.h>
 #include <libxslt/xsltutils.h>
 
+#ifdef FASTXSL_MM
 #include <mm.h>
+#endif
+
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -58,7 +61,9 @@ PHP_MSHUTDOWN_FUNCTION(fastxsl);
 PHP_MINFO_FUNCTION(fastxsl);
 
 typedef struct {
+#ifdef FASTXSL_MM
 	MM   *mm;
+#endif
 	FL_Hash *table;
 	pid_t owner;
 	FL_Hash *prmtable;
