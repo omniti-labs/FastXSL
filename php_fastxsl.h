@@ -35,6 +35,11 @@
 #include <libxslt/transform.h>
 #include <libxslt/xsltutils.h>
 
+#if HAVE_DOMEXSLT
+#include <libexslt/exslt.h>
+#include <libexslt/exsltconfig.h>
+#endif
+
 #ifdef FASTXSL_MM
 #include <mm.h>
 #endif

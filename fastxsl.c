@@ -1135,6 +1135,9 @@ PHP_MINIT_FUNCTION(fastxsl)
 			le_fastxsl_document_name,   module_number);
 
 	xsltRegisterAllExtras();
+#if HAVE_DOMEXSLT
+	exsltRegisterAll();
+#endif
 	xmlSubstituteEntitiesDefault(1);
 	xmlLoadExtDtdDefaultValue = 1;
 
@@ -1180,7 +1183,10 @@ PHP_MINFO_FUNCTION(fastxsl)
 {
 	php_info_print_table_start();
 	php_info_print_table_header(2, "fastxsl support", "enabled");
+	php_info_print_table_row(2, "libxml Version", LIBXML_DOTTED_VERSION);
+	php_info_print_table_row(2, "libxslt Version", LIBXSLT_DOTTED_VERSION);
+#if HAVE_DOMEXSLT
+    php_info_print_table_row(2, "libexslt Version", LIBEXSLT_DOTTED_VERSION);
+#endif
 	php_info_print_table_end();
-
 }
-

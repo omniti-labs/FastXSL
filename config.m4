@@ -1,5 +1,22 @@
 dnl $Id: config.m4,v 1.1.1.1 2004/02/17 23:31:43 sterling Exp $
 
+AC_DEFUN(PHP_EXSLT_CHECK_VERSION,[
+  old_CPPFLAGS=$CPPFLAGS
+  CPPFLAGS=-I$DOMEXSLT_DIR/include
+  AC_MSG_CHECKING(for libexslt version)
+  AC_EGREP_CPP(yes,[
+#include <libexslt/exsltconfig.h>
+#if LIBEXSLT_VERSION >= 600
+  yes
+#endif
+  ],[
+    AC_MSG_RESULT(>= 1.0.3)
+  ],[
+    AC_MSG_ERROR(libxslt version 1.0.3 or greater required.)
+  ])
+  CPPFLAGS=$old_CPPFLAGS
+])
+
 PHP_ARG_WITH(fastxsl, for fastxsl support,
 [  --with-fastxsl             Include fastxsl support])
 
@@ -44,4 +61,34 @@ if test "$PHP_FASTXSL" != "no"; then
   PHP_SUBST(FASTXSL_SHARED_LIBADD)
 
   PHP_NEW_EXTENSION(fastxsl, fastxsl.c fl_hash.c, $ext_shared)
+fi
+
+PHP_ARG_WITH(exslt, for DOM EXSLT support,
+[  --with-exslt[=DIR]    FastXSL: Include DOM EXSLT support (requires libxslt >= 1.0.18).
+                            DIR is the libexslt install directory.], no, no)
+
+if test "$PHP_EXSLT" != "no"; then
+  if test -r $PHP_EXSLT/include/libexslt/exslt.h; then
+    DOMEXSLT_DIR=$PHP_EXSLT
+  else
+    for i in /usr/local /usr; do
+      test -r $i/include/libexslt/exslt.h && DOMEXSLT_DIR=$i
+    done
+  fi
+
+  if test -z "$DOMEXSLT_DIR"; then
+    AC_MSG_RESULT(not found)
+    AC_MSG_ERROR(Please reinstall the libexslt distribution)
+  fi
+
+  PHP_EXSLT_CHECK_VERSION
+
+  PHP_ADD_LIBRARY_WITH_PATH(exslt, $DOMEXSLT_DIR/lib, FASTXSL_SHARED_LIBADD)
+
+  PHP_ADD_INCLUDE($DOMEXSLT_DIR/include)
+
+  AC_DEFINE(HAVE_DOMEXSLT,1,[ ])
+
+  PHP_SUBST(FASTXSL_SHARED_LIBADD)
+
 fi
