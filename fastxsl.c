@@ -549,7 +549,6 @@ PHP_FUNCTION(fastxsl_shmcache_transform)
 		}
 	}
 
-	wrapper = (php_ss_wrapper *) SS_Wrapper_Alloc(0 TSRMLS_CC);
 	result_wrapper->xd = xsltApplyStylesheet(ss_wrapper->ss, xd_wrapper->xd, 
 			(const char **) parameters);
 
