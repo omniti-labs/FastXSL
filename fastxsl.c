@@ -59,8 +59,10 @@ SS_Wrapper_Alloc(int shared TSRMLS_DC)
 	php_ss_wrapper *wrapper;
 
 	if (shared) {
-		if (FASTXSL_SHARED_ALLOC) {
+		if (shared == FASTXSL_SHARED_ALLOC) {
 			wrapper = (php_ss_wrapper *) mm_calloc(FASTXSL_G(cache)->mm, 1, sizeof(php_ss_wrapper));
+		} else {
+			wrapper = (php_ss_wrapper *) calloc(1, sizeof(php_ss_wrapper));
 		}
 		wrapper->persistant = 1;
 	} else {
