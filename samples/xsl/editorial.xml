@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE article SYSTEM "{DTD_PATH}" [
+
+]>
+<!-- $Revision: 1.1.1.1 $ -->
+<article>
+ <articleinfo>
+  <title>Dear Readers,</title>
+ </articleinfo>
+
+ <section>
+  <title>&#160;</title>
+  <para>
+   Welcome to the fifth issue of the International PHP Magazine. Summer is
+   almost over again, and with a fresh mind I was going to start working on
+   some of the remaining bugs in PHP. But, that proved more difficult then I
+   thought. The problem is that there are almost no reported bugs anymore, and
+   if there are, they're in one of the categories that nobody else knows or
+   cares about (such as ODBC, Java and OCI). So what does that mean? Is PHP
+   really becoming bugfree? Well, of course it isn't. There are still some
+   bugs, but they are unknown to the PHP Development team. Most of these bugs
+   are in places that are not much used and does have very little chance of
+   discovering, other might be introduced in PHP 4.3.3, which should be out
+   already, or in the very near future. And then of course there is PHP 5 with
+   it's new internals. Especially this part hasn't been tested that much by
+   real users so it is very likely that there will be found quite a lot of
+   bugs in there. So it might look like we're out of bugs, but there might be
+   a lot of them hiding under the grass.
+  </para>
+  <para>
+   If you want to find bugs in your own code, have a look at the last part of
+   our Error Handling article. What else can you find in this issue? We have
+   an article on how byte code caches work, and an accompanying benchmark with
+   four caches: APC, PHP Accelerator, Turck MM Cache and Zend Performance
+   Suite. We have an introductionary article on SOAP which teach you how to
+   create a basic SOAP client and SOAP server. Follow ups on this article will
+   be published in later issues. Steph Fox talks about new PHP-GTK
+   functionality and Davey Shafik explains us ways on how to 'secure' input
+   variables with HMACs.
+  </para>
+  <para>
+    Left are the first part of a very extensive article
+   on PHP 5 and OO, in this part Marcus Börger explains the new OO model
+   from a users' perspective and tries to implement the methods that were
+   raised in the OO Introduction article in Issue #1. The next issue will
+   feature the second part of this article in which Marcus will talk about
+   some more advanced features.
+  </para>
+  <para>
+   Furthermore we have an article dealing with the under ColdFusion very
+   popular FuseBox methodology applied to the PHP world and another article on
+   Portability and Backwards Compatibility. The latter talks about strategies
+   on how to code defensively for multiple PHP versions and provides ways on
+   how to fill in missing functions from earlier PHP versions.
+  </para>
+  <para>
+   As always, if you have any questions or suggestions, feel free to post them
+   at our forum @ http://php-mag.net/forum or write to us, your editors @
+   editors@php-mag.net. We hope that you enjoy this issue.
+  </para>
+ </section>
+
+ <section>
+  <glosslist>
+   <glossentry>
+    <glossterm>http://bugs.php.net/bugstats.php?phpver=4</glossterm>
+    <glossdef><para>Bugs Statistics</para></glossdef>
+   </glossentry>
+   <glossentry>
+    <glossterm>http://www.php.net/~jani/bugs-graph.php</glossterm>
+    <glossdef><para>Bugs Graphs</para></glossdef>
+   </glossentry>
+   <glossentry>
+    <glossterm>http://php-mag.net/itr/online_artikel/psecom,id,284,nodeid,114.html</glossterm>
+    <glossdef><para>Leendert Brouwer: Taking PHP the OO way</para></glossdef>
+   </glossentry>
+  </glosslist>
+ </section>
+</article>
+<!-- keep this comment at the end of the file
+vim600: syn=xml fen fdm=syntax fdl=4 si
+vim: et tw=78 syn=sgml
+vi: ts=1 sw=1
+-->

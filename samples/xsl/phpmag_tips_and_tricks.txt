@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE article SYSTEM "{DTD_PATH}" [
+
+]>
+<!-- $Revision: 1.1.1.1 $ -->
+<article>
+ <articleinfo>
+  <title>Tips &amp; Tricks</title>
+  <author><firstname>Leendert</firstname><surname>Brouwer</surname></author>
+ </articleinfo>
+
+ <epigraph>
+  <para>
+   In this article we're going to look at a few things that might not be
+   something you intuitively think of when approaching certain problems, or
+   you might not even see the problem in the first place. As we all know, PHP
+   has a huge userbase. Logically, if a lot of people use a technology, that
+   adds to the amount of experience in the big picture. Some programmers
+   invent neat solutions to solve certain things, and sharing them with peers
+   is generally the next logical step in the PHP culture.
+  </para>
+ </epigraph>
+
+ <section>
+  <title>Making URL tampering less inviting</title>
+  <para>
+	The fact that you should never trust a user should be an extension of the
+	programmer's brain. When programming, a decent amount of paranoia is often
+	needed to avoid having your application cracked. Visitors can be downright
+	mean, and we should punish them for that as soon as we can. Ideally, even
+	before they're tempted to mess with our URL's. How would we go around
+	that?  One way is to encode the parameters in the URL so that it is less
+	obvious what's in them. Say, you need to pass a username along with the
+	URL. First, we might choose to not call our parameter "username". Instead,
+	we could use a name that does not expose the nature of our parameter, so
+	that Mister "oh-im-so-cool" Cracker doesn't really have a clue about what
+	the parameter is supposed to represent. To keep our example simple, we'll
+	just use "u" for the name. Listing 1 shows how we can send the encoded
+	value along with the URL, and decode it at the other end. To encode the
+	string we use <function>base64_encode</function>, which is a function that is normally used
+	to encode binary data for safe transporting, but it works fine for our
+	purpose too. To keep things nice we encode the base64-encoded string with
+	<function>rawurlencode</function> to comply with RFC 1738 and pass the parameter that way
+	using a HTTP Location header. In the receiving script we simply
+	<function>rawurldecode</function> the incoming GET-parameter "u" and use <function>base64_decode</function> to
+	get our original string back. Now the visitor will see a somewhat strange
+	URL like http://www.yourdomain.com/letsgohere.php?u=SG9seUdvYXQ%3D and
+	will be left in confusion, as we intended. Of course this is not meant to
+	be used for actually securing your data, but it's a nice trick to scare
+	off potential script kiddies or leechers.
+  </para>
+ </section>
+
+ <section>
+  <title>Requiring authentication codes</title>
+  <para>
+	Many times, I have gotten mailinglists that had a URL to unsubscribe from
+	the list through a url like this:
+	http://www.somesite.com/unsubscribe.php?email=myemail@mydomain.com, and by
+	clicking the link you're unsubscribing yourself. It's just too tempting to
+	play with that. Guess what happens when you launch
+	http://www.thedomain.com/unsubscribe.php?email=info@somesite.com. It is
+	likely that the people behind somesite.com have subscribed themselves to
+	the mailinglist to receive their own mailinglists just to confirm it has
+	been sent. The next time they might just be a little puzzled because
+	they're not receiving any mail. There are of course a lot of variations on
+	this particular kind of prank inviting situations. They can often be
+	avoided, too. In the case of the example mentioned, there's a simple thing
+	you can do to prevent this from happening. When setting up the
+	subscription system for the mailinglist, you could store not only the
+	email address, but also some unique code that goes with the email address.
+	That way, you can include both in the link you use for unsubscribing, and
+	the email address will only be unsubscribed when the combination of both
+	the email address and the unique code is a valid match. Code that could be
+	used to generate a unique string is visible in Listing 2 (I've used
+	<function>substr</function> to limit the length of the code because it looks ugly). Now the
+	link to remove yourself from the list could look like this:
+	http://www.thedomain.com/unsubscribe.php?email=info@somesite.com&amp;code=78c7c1.
+	That will take some guessing before someone can do some annoying things,
+	because without the match of email and code, removal is not possible. This
+	is an easy fix in case you're writing applications that use information to
+	trigger certain actions that can easily be tricked, without needing a
+	complicated or less user friendly authentication system around it. 
+  </para>
+ </section>
+
+ <section>
+  <title>A little more strict on incoming data</title>
+  <para>
+   A lot of programmers are stressed because of tight deadlines. That's not
+   something we can get out of the way, it has been like that for decades now.
+   However, this also has the unfortunate effect that a lot of sloppy code
+   gets written, which can lead to strange results at times. For example, too
+   often I've experienced scripts that only checked if a variable existed
+   after submitting a form, but did not look at the data that was coming in at
+   all. Listing 3 shows an example of that. But who is that guy whose name
+   consists of only a space? Indeed, there is no guy whose name only consists
+   of a space. That's why we could at least check if the value of the field we
+   want to validate is containing any characters besides a possible space.
+   Listing 4 shows how to do just this for a field in a form that's being
+   submitted using the HTTP POST method. In the if-statement we use <function>trim</function> to
+   get rid of the whitespace at the beginning and the end of the string.
+   Therefore, there can be nothing left but other characters than space. We
+   see if there are in fact any characters left by invoking <function>strlen</function> on the
+   remaining string. If that value is bigger than zero, we know it is set. If
+   it's not, there were only spaces in the field. Of course this is by no
+   means a strict way of dealing with your data, but it sure is better than
+   just testing if the variable is there and it can save some trouble. If you
+   really want strict validation of incoming data you're better off with
+   regular expressions in most cases.
+  </para>
+ </section>
+
+ <section>
+  <title>Overriding safe_mode with the CGI binary</title>
+  <para>
+   A lot of us probably have faced situations in which we were not having much
+   say in the environment that's going to be used for the things that are
+   being programmed. That can be extremely annoying at times, primarily
+   because webhosting companies tend to limit what you can do with PHP on
+   their webservers, thus limiting the set of functionality that you can use.
+   There's a nice trick to bypass this kind of "security" in some situations.
+   A lot of companies (although not recommended for performance reasons) still
+   install PHP as a CGI binary. They also tend to be a bit meaner than that by
+   not letting us use .htaccess files to influence the PHP configuration
+   (which is caused by Apache's AllowOverride directive not allowing Options),
+   and on top of that, they will run PHP in safe mode. That's not a very nice
+   working environment, is it? Fortunately, there's a hack, or rather, a fact,
+   that a lot of people don't know about. When running PHP as a CGI program,
+   the PHP interpreter always tries to look for a php.ini in the directory
+   that the script resides. That allows us to just override the safe_mode
+   directive by putting safe_mode = Off in a php.ini, stuff it in the relevant
+   directory, and boom. We have a working PHP environment in which we can
+   actually get things done.
+  </para>
+ </section>
+
+ <section>
+  <title>throwing data at MS Excel</title>
+  <para>
+   I have often seen questions from people who want to output data in MS Excel
+   format. Most of the time, the only reason people want to do that is so they
+   can look at the data in nice, organized columns. In that case, you would
+   not need the logic a spreadsheet program provides and thus, you do not
+   actually need to use an MS Excel fileformat for that. MS Excel can read
+   comma-delimited files as well, which are a lot easier to create and only
+   hold data. Listing 5 shows a simple example to accomplish this. As you can
+   see, it's pretty easy. For proof of concept, I created an array, looped
+   through the contents of it and added it to a string. Sending the correct
+   HTTP headers is next on the list. Ideally, we would like the browser to
+   come up with a dialog for downloading or direct opening. As the idea is to
+   load the data into MS Excel, we can simply use the string
+   "application/ms-excel" as the value for the Content-type header. That will
+   create the awareness that we're dealing with a MS Excel file here. We set
+   the Content-Disposition header to "attachment" as we do not want the
+   content to appear inline (in the browser) and after this we come up with a
+   name that will be used to save the file to the client's disk. I've chosen
+   "data.csv". Lastly we print the contents of the string to the client. The
+   script will now cause the dialog to show up and (depending on your browser)
+   will give you the option to download or open the file directly. If MS Excel
+   is installed the contents will now be shown nicely in MS Excel. That's all
+   there's to it.
+  </para>
+ </section>
+
+ <section>
+  <title>Running a PHP script as a cron job</title>
+  <para>
+   On some occasions you want to automate certain tasks. Tasks that PHP is
+   good at, in particular. So you thought that's not possible with PHP and
+   ported your idea to a bash script? Too bad. Doing that with PHP is pretty
+   trivial.  There are actually two common ways to go around that. The first
+   is to use the command line interpreter directly, so that means you'd just
+   do the shell scripting in PHP. Starting from version 4.3.0, PHP is compiled
+   with --enable-cli by default, which means that the command line interpreter
+   will be available. Listing 6 shows an example of how to write a shell
+   script in PHP.  We just put a she-bang (path to the interpreter) on top of
+   the file to point to the command line interpreter (the -q parameter is used
+   to surpress HTTP headers). Give this file permissions so that it can
+   execute, let the cron daemon know when to execute it (how to do this is in
+   the docs of your OS), and there you have a nice cron job written in PHP.
+   Just in case you do not have access to the CLI (because PHP was compiled
+   with --disable-cli or on older PHP versions that don't have it enabled),
+   there's an alternative way of doing it which is a bit more tricky, but
+   still a fairly clean hack. Using this way, you can just put the script that
+   needs to be executed in a web directory. In listing 7 you can see a regular
+   shell script. In this script, we invoke the text-based Lynx browser to
+   execute the PHP file. The -dump parameter makes sure Lynx will exit once
+   the request is completed. Assuming we don't want the script to be executed
+   by accident, it's probably the best if you protect the directory the script
+   resides in with a password. When using HTTP authentication, Lynx needs to
+   know the authentication data so that it can access the script. This is
+   accomplished by using the -auth parameter, which can be given a username
+   and password, delimited by a colon. The PHP script you're calling can be a
+   regular script, there's nothing special about this. As with the method
+   mentioned earlier, you give the shell script execute permissions, tell cron
+   when to execute it, and we're done.
+  </para>
+ </section>
+
+ <example>
+  <para>
+   <programlisting><![CDATA[
+// pass encoded value
+header("Location: http://www.yourdomain.com/letsgohere.php?u=".rawurlencode(base64_encode($username)));
+
+// decode value at the other end
+$username = rawurldecode(base64_decode($_GET['u']));
+]]></programlisting>
+  </para>
+ </example>
+
+ <example>
+  <para>
+   <programlisting><![CDATA[
+$unique_code = substr(md5(uniqid(rand(), 1)), 0, 6);
+]]></programlisting>
+  </para>
+ </example>
+
+ <example>
+  <para>
+   <programlisting><![CDATA[
+if(isset($_POST['your_name']))
+{
+	// do things
+}
+]]></programlisting>
+  </para>
+ </example>
+
+ <example>
+  <para>
+   <programlisting><![CDATA[
+if(strlen(trim($_POST['your_name'])) > 0)
+{
+	// do things
+}
+]]></programlisting>
+  </para>
+ </example>
+
+ <example>
+  <para>
+   <programlisting><![CDATA[
+<?php
+$foo = array(
+	'one' => 'two',
+	'three' => 'four',
+	'five' => 'six'
+);
+
+$csv_data = '';
+
+foreach($foo as $key => $val) 
+{
+	$csv_data .= "$key,$val\r\n";
+}
+
+header("Content-type: application/ms-excel");
+header("Content-Disposition: attachment; filename=data.csv");
+echo($csv_data);
+?>
+]]></programlisting>
+  </para>
+ </example>
+
+ <example>
+  <para>
+   <programlisting><![CDATA[
+#!/usr/bin/php -q
+<?php
+mail("foo@bar.com", "This is PHP talking", "Hey the cron daemon was running me!");
+?>
+]]></programlisting>
+  </para>
+ </example>
+
+ <example>
+  <para>
+   <programlisting><![CDATA[
+#!/bin/sh
+/usr/bin/lynx -dump -auth=username:secretpass http://www.yourdomain.com/path/to/script.php
+]]></programlisting>
+  </para>
+ </example>
+
+</article>

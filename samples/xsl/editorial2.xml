@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE article SYSTEM "{DTD_PATH}" [
+
+]>
+<!-- $Revision: 1.1.1.1 $ -->
+<article>
+ <articleinfo>
+  <title>Dear Readers,</title>
+ </articleinfo>
+
+ <section>
+  <title>&#160;</title>
+  <para>
+   Welcome to the fourth issue of the International PHP Magazine. PHP 5 is
+   coming and one of it's main features is the improved OO model, until a few
+   weeks ago. Work on a few new extensions has already been started:
+   simplexml, dom and xsl should be the core extensions to use, parse and
+   transform XML; sqlite, simpledb and mysqli are new database extensions.
+   The name 'simpledb' has not really settled, the extension will form some
+   kind of abstraction for all the different database APIs including some
+   additional functionality that the new OO model made possible.
+  </para>
+  <para>
+   The MySQLi extension, yes, the MySQLi extension causes some head aches.
+   Because MySQL changed the license for the version 4.x client libraries from
+   LGPL (The Lesser GNU Public License) to GPL (The GNU Public License) the
+   PHP project is not allowed to bundle the library anymore; even worse, they
+   can not even distribute the extension anymore. Not in the core distribution
+   and not in PECL <b>unless</b> PHP changes its license to GPL, which is
+   something that will never happen. Actually, it gets even worse.  With the
+   new licensing it is not even allowed to distribute a propriatary web
+   application that relies on PHP's MySQL API (if it's using the version 4
+   libraries), again, unless you distribute your application under the GPL,
+   which kinda defeats the idea of 'proprietary'.  We'll illustrate how it can
+   affect you with some examples:
+  </para>
+  <para>
+   You made a large webshop relying on MySQL 4.1 functions which you wrote as
+   a contract job for one specific customer, but you're not distributing
+   either PHP, the MySQLi extension, the MySQL client library nor MySQL: no
+   problem at all, because you're not distributing your application and thus
+   are not bound to the GPL, which only covers distributing (which is weird on
+   it's own, as normal non-virulent licenses usually deal with usage). Things
+   change when suddenly you have to possibility to sell the same script to
+   another customers. As you're now distributing the script you're bound to
+   the GPL, and if you don't want to relicense your application you will need
+   to buy a MySQL commercial license.
+  </para>
+  <para>
+   During the interview we had about the licensing issues with MySQL's Open
+   Source advocate Zak Greant he told us two reasons why they changed license.
+   <i>"Our users now only have to deal with one non-commercial license"</i>
+   and <i>"having a GPL-licensed client lets us more easily differentiate
+   between a proprietary user ... and a free software user who should use the
+   software under the terms of the GPL"</i>. They kinda forget there are a lot
+   of Open Source developers that do not like the GPL at all because of it's
+   virulent nature. MySQL with it's large user base is effectively try to
+   convert its "open source" user base to the church of Emacs, and that also
+   over the back of the PHP users. And that is going to far as MySQL's
+   userbase only grew <b>because</b> of PHP and the bundling of its client
+   library with PHP. People feel backstabbed, lines as <i>"if I knew they were
+   going this way, I would never helped them"</i>. Perhaps that goes a bit too
+   far, but MySQL definitely succeeded in pissing of quite a lot of PHPers,
+   and also a lot off SAP DB users, and for what reason? Definitely not only for
+   the two mentioned in the interview, its apparent that there is only one
+   real reason: <i>"Maximize our profit, screw the users"</i>. Okay, I admit
+   that that goes a little bit too far, MySQL still isn't Microsoft.
+  </para>
+  <para>
+   What else is in this issue? As a starter we'll have a nicely filled "Ask a
+   PHP Guru" section with questions from our readers.The main dish consists of
+   a often requested on Secure Programming with PHP and as desert we have
+   articles on Error Handling, Template Systems, cURL, XML-RPC and Jabber. Bon
+   Apetit!
+  </para>
+ </section>
+
+ <section>
+  <glosslist>
+   <glossentry>
+    <glossterm>http://www.mysql.com/</glossterm>
+    <glossdef><para>MySQL Website</para></glossdef>
+   </glossentry>
+  </glosslist>
+ </section>
+</article>
+<!-- keep this comment at the end of the file
+vim600: syn=xml fen fdm=syntax fdl=4 si
+vim: et tw=78 syn=sgml
+vi: ts=1 sw=1
+-->

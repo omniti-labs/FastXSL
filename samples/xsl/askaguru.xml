@@ -1,0 +1,657 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE article SYSTEM "{DTD_PATH}" [
+
+]>
+<!-- $Revision: 1.1.1.1 $ -->
+<article>
+ <articleinfo>
+  <title>Ask a PHP Guru</title>
+  <subtitle>Any questions?</subtitle>
+ </articleinfo>
+
+ <epigraph>
+  <para>
+   In our magazine we give you, our readers, the opportunity to ask a real PHP
+   guru what you ever wanted to ask. This, of course, is not meant as a
+   support forum for general PHP questions; the PHP project has plenty of
+   mailinglists to deal with those kind of questions. The most interesting
+   questions will be published in the magazine, along with the written answer
+   of one of our gurus: Ilia Alshanetsky, Stig S. Bakken, Marcus Börger,
+   Stefan Esser, Wez Furlong, Sterling Hughes, Georg Richter, Zeev Suraski and
+   Andrei Zmievski.  We rather like to see conceptual questions and not
+   practical ones as they tend to be more interesting for other readers as
+   well.
+  </para>
+ </epigraph>
+
+ <section id="q1">
+  <title>Question 1: Threading</title>
+  <para>
+   <literal>Q: Is there a way to do a form of threading in PHP?</literal>
+  </para>
+
+  <para>
+   <literal>Say for instance you write a PHP application to monitor a service
+   on a number of servers, it would be nice to be able query a number of
+   servers at the same time rather then query them one-by-one.</literal>
+  </para>
+
+  <para>
+   A: People often assume that you need to fork or spawn threads whenever you
+   need to do several things at the same time - and when they realize that PHP
+   doesn't support threading they move on to something less nice, like perl.
+  </para>
+
+  <para>
+   The good news is that in the majority of cases you *don't* need to fork or
+   thread at all, and that you will often get much better performance for not
+   forking/threading in the first place.
+  </para>
+
+  <para>
+   Say you need to check up on web servers running on a number of hosts to
+   make sure that they are still responding to the outside world.  You might
+   write a script like in Listing 1.
+  </para>
+
+  <para>
+   <example>
+    <programlisting><![CDATA[<?php
+$hosts = array("host1.sample.com", "host2.sample.com", "host3.sample.com");
+$timeout = 15;
+$status = array();
+
+foreach ($hosts as $host) {
+ $errno = 0;
+ $errstr = "";
+ 
+ $s = fsockopen($host, 80, $errno, $errstr, $timeout);
+ 
+ if ($s) {
+  $status[$host] = "Connected\n";
+  fwrite($s, "HEAD / HTTP/1.0\r\nHost: $host\r\n\r\n");
+  do {
+   $data = fread($s, 8192);
+   if (strlen($data) == 0) {
+    break;
+   }
+   $status[$host] .= $data;
+  } while (true);
+  fclose($s);
+ } else {
+  $status[$host] = "Connection failed: $errno $errstr\n";
+ }
+}
+
+print_r($status);
+?>]]></programlisting>
+   </example>
+  </para>
+
+  <para>
+   This works fine, but since <function>fsockopen</function> doesn't return until it has resolved
+   the hostname and made a successful connection (or waited up to $timeout
+   seconds), extending this script to monitor a larger number of hosts makes
+   it slow to complete.
+  </para>
+
+  <para>
+   There is no reason why we have to do it sequentially; we can make
+   asynchronous connections - that is, connections where we don't have to wait
+   for fsockopen to return an opened connection.  PHP will still need to
+   resolve the hostname (so its better to use IP addresses), but will return
+   as soon as it has started to open the connection, so that we can move on to
+   the next host.
+  </para>
+
+  <para>
+   There are two ways to achieve this; in PHP 5, you can use the new
+   <function>stream_socket_client</function> function as a drop-in replacement
+   for <function>fsockopen</function>.  In earlier versions of PHP, you need
+   to get your hands dirty and use the sockets extension. Listing 2 shows how
+   to do it in PHP 5.
+  </para>
+
+  <para>
+   <example>
+    <programlisting><![CDATA[<?php
+$hosts = array("host1.sample.com", "host2.sample.com", "host3.sample.com");
+$timeout = 15;
+$status = array();
+$sockets = array();
+
+/* Initiate connections to all the hosts simultaneously */
+foreach ($hosts as $id => $host) {
+ $s = stream_socket_client("$host:80", $errno, $errstr, $timeout, 
+  STREAM_CLIENT_ASYNC_CONNECT);
+
+ if ($s) {
+  $sockets[$id] = $s;
+  $status[$id] = "in progress";
+ } else {
+  $status[$id] = "failed, $errno $errstr";
+ }
+}
+
+/* Now, wait for the results to come back in */
+while (count($sockets)) {
+ $read = $write = $sockets;
+ /* This is the magic function - explained below */
+ $n = stream_select($read, $write, $e = null, $timeout);
+
+ if ($n > 0) {
+  /* readable sockets either have data for us, or are failed
+   * connection attempts */
+  foreach ($read as $r) {
+   $id = array_search($r, $sockets);
+   $data = fread($r, 8192);
+   if (strlen($data) == 0) {
+    if ($status[$id] == "in progress") {
+     $status[$id] = "failed to connect";
+    }
+    fclose($r);
+    unset($sockets[$id]);
+   } else {
+    $status[$id] .= $data;
+   }
+  }
+  /* writeable sockets can accept an HTTP request */
+  foreach ($write as $w) {
+   $id = array_search($w, $sockets);
+   fwrite($w, "HEAD / HTTP/1.0\r\nHost: "
+    . $hosts[$id] .  "\r\n\r\n");
+   $status[$id] = "waiting for response";
+  }
+ } else {
+  /* timed out waiting; assume that all hosts associated
+   * with $sockets are faulty */
+  foreach ($sockets as $id => $s) {
+   $status[$id] = "timed out " . $status[$id];
+  }
+  break;
+ }
+}
+
+foreach ($hosts as $id => $host) {
+ echo "Host: $host\n";
+ echo "Status: " . $status[$id] . "\n\n";
+}
+?>]]></programlisting>
+   </example>
+  </para>
+
+  <para>
+   We are using <function>stream_select</function> to wait for events on the sockets that we
+   opened.  <function>stream_select</function> calls the system select(2) function and it works
+   like this: The first three parameters are arrays of streams that you want
+   to work with; you can wait for reading, writing and exceptional events
+   (parameters one, two and three respectively).  <function>stream_select</function> will wait up
+   to $timeout seconds for an event to occur - when it does, it will modify
+   the arrays you passed in to contain the sockets that have met your
+   criteria.
+  </para>
+  <para>
+   Now, using PHP 4.1.0 and later, if you have compiled in support for
+   ext/sockets, you can use the same script as above, but you need to replace
+   the regular streams/filesystem function calls with their equivalents from
+   ext/sockets.  The major difference though is in how we open the connection;
+   instead of <function>stream_socket_client</function>, you need to use the function in Listing
+   3.
+  </para>
+
+  <para>
+   <example>
+    <programlisting><![CDATA[<?php
+// This value is correct for Linux, other systems have other values
+define('EINPROGRESS', 115);
+function non_blocking_connect($host, $port, &$errno, &$errstr, $timeout) {
+ $ip = gethostbyname($host);
+ $s = socket_create(AF_INET, SOCK_STREAM, 0);
+ if (socket_set_nonblock($s)) {
+  $r = @socket_connect($s, $ip, $port);
+  if ($r || socket_last_error() == EINPROGRESS) {
+   $errno = EINPROGRESS;
+   return $s;
+  }
+ }
+ $errno = socket_last_error($s);
+ $errstr = socket_strerror($errno);
+ socket_close($s);
+ return false;
+}
+?>]]></programlisting>
+   </example>
+  </para>
+
+  <para>
+   Now, replace <function>stream_select</function> with <function>socket_select</function>, <function>fread</function> with
+   <function>socket_read</function>, <function>fwrite</function> with <function>socket_write</function> and <function>fclose</function> with
+   <function>socket_close</function> and you are ready to run the script.
+  </para>
+  <para>
+   The advantage of the PHP 5 approach is that you can use <function>stream_select</function> to
+   wait on (almost!) any kind of stream - you can wait for keyboard input from
+   the terminal by including STDIN in your read array for example, and you can
+   also wait for data from pipes created by the <function>proc_open</function> function.
+  </para>
+  <para>
+   Although PHP 5 is not ready for prime-time hosting, you should find it
+   stable enough to use the CLI version in this scenario - feel free to try
+   out a snapshot!  If you are not brave enough to run with PHP 5, go with PHP
+   4.3.2 and use ext/sockets.
+  </para>
+  <para>
+   If you want PHP 4.3.2 *and* want to use the native streams approach, I have
+   prepared a patch that allows fsockopen to work asynchronously.  The patch
+   is unsupported and won't be in an official PHP release, however, I've
+   provided a wrapper that implements the <function>stream_socket_client</function> function
+   along with the patch, so that your code will be forwards compatible with
+   PHP 5.
+  </para>
+  <para>
+   <literal>-- Wez Furlong</literal>
+  </para>
+
+  <glosslist>
+   <glossentry>
+    <glossterm>http://www.php.net/stream_select</glossterm>
+    <glossdef><para>documentation for <function>stream_select</function></para></glossdef>
+   </glossentry>
+
+   <glossentry>
+    <glossterm>http://www.php.net/socket_select</glossterm>
+    <glossdef><para>documentation for <function>socket_select</function></para></glossdef>
+   </glossentry>
+
+   <glossentry>
+    <glossterm>http://www.php.net/~wez/guru-multiplexing.tgz</glossterm>
+    <glossdef><para>patch for 4.3.2 and script to emulate
+    stream_socket_client.</para></glossdef>
+   </glossentry>
+  </glosslist>
+
+ </section>
+
+ <section id="q2">
+  <title>Question 2: PEAR on MacOSX</title>
+
+  <para>
+   <literal>Q: I've read articles about it, see a lot of comments on PEAR, so
+   it would be nice to test it myself.  PEAR is installed (sort of) with PHP
+   4.3.0, but how do I get it to work, to see the web-based installer
+   etc.?</literal>
+  </para>
+  <para>
+   <literal>I can't find any installing information on pear.php.net for MacOS
+   X.  I don't seem to find the logic to get it to work... it would be nice if
+   anyone can help me find the logic behind it and get the whole thing to
+   work.</literal>
+  </para>
+  <para>
+   A: With the 4.3.0 releases, Macintosh users can now work with their
+   favourite scripting langage as any other Linux, *BSD or Windows users. Here
+   I'll explain how to setup PEAR on your box and then enjoy the powerfull
+   PEAR package manager.
+  </para>
+  <para>
+   First, you need a working PHP installation using PHP 4.2.0 or recent
+   releases. I do not cover the installation of PHP here, please read the
+   usefull tutorials in the links sections or uses the binaries available on
+   <literal>entropy.ch</literal>. We recommand the use of the CLI (PHP
+   configure option <literal>--enable-cli</literal>) interface to install PEAR
+   in the console mode. The CGI version works well too (available with the
+   binaries). To use the web installer, you will need a working Apache/PHP
+   installation.
+  </para>
+  <para>
+   To install PEAR packages you need the installer. This tool includes
+   everything you need to install or upgrade a pear packages or create your
+   own package.
+  </para> 
+  <para>
+   A crossplatform setup script is available through
+   <literal>http://go-pear.org</literal>.  Grabing and executing is an easy
+   task:
+  </para>
+  <para>
+   <screen>
+% curl http://go-pear.org | php
+   </screen>
+  </para>
+  <para>
+   Or you may always download it from your favourite browser save the file as
+   <literal>go-pear.php</literal> and launch it using:
+  </para>
+  <para>
+   <screen>
+CLI:
+% php go-pear.php
+CGI:
+% php -q go-pear.php
+   </screen>
+  </para>
+
+  <para>
+   At this point, the following steps are explained in the setup script
+   itself. I recommand to carefully read the possible warning or notices
+   during the installation process. These texts are usefull to solve any
+   problems during this phase.
+  </para>
+
+  <para>
+   To do change permissions on the default PHP installation folder, you can
+   choose the installation folder as follows:
+  </para>
+
+  <para>
+   <screen>
+Installation prefix: /usr/local
+Binaries folders: $prefix/bin
+PHP Code folders: $prefix/share/pear
+   </screen>
+  </para>
+  <para>
+   Verify everything works well and your pear command is in your path by
+   entering this command:
+  </para>
+  <para>
+   <screen>
+% pear -V
+PEAR Version: 1.1
+PHP Version: 4.3.2
+Zend Engine Version: 1.3.0
+   </screen>
+  </para>
+  <para>
+   You may need to update your <literal>include_path</literal> according to
+   your PEAR installation by editing you <literal>php.ini</literal>:
+  </para>
+  <para>
+   <screen>
+% bbedit -c /usr/local/lib/php.ini
+   </screen>
+  </para>
+
+  <para>
+Modify or add the following line:
+  </para>
+  <para>
+   <screen>
+include_path = ".:/usr/local/share/pear";
+   </screen>
+  </para>
+
+  <para>
+   Now you are ready to use PEAR. You can list the installed packages with:
+  </para>
+  <para>
+   <screen>
+% pear list
+Installed packages:
+===================
+Package              Version State  
+Archive_Tar          1.0     stable 
+Auth                 1.2.0   stable 
+Benchmark            1.2     stable 
+Cache_Lite           1.1     stable 
+Config               1.5     stable 
+Install a package (i.e. Text_Statistics)
+% pear install Text_Statistics
+downloading Text_Statistics-1.0.tgz ...
+...done: 0 bytes
+install ok: Text_Statistics 1.0
+   </screen>
+  </para>
+
+  <para>
+   <figure>
+    <title>pear list-all</title>
+    <graphic fileref="pear-list-all.png"/>
+   </figure>
+  </para>
+
+  <para>
+   The web installer is still in an alpha state, but should be usefull. The
+   first step is to get the <literal>go-pear</literal> script using your
+   browser (using "save target as") and save it somewhere under your document
+   root directory. The easiest way is to create a new directory for pear and
+   put the files there.
+  </para>
+  <para>
+   Once <literal>go-pear.php</literal> has been saved, make sure PHP has the
+   write permissions in the installation folder. Then you can launch the
+   installation from your browser
+   (<literal>http://localhost/pear/go-pear.php</literal>).
+  </para>
+  <para>
+   The setup steps are self explained in the different screen of the
+   installer. After having running go-pear, you get a link to the web
+   installer itself. I suggest to bookmark this link. As we did for the CLI
+   installer, you may need to update the include_path to point to your PEAR
+   installation directory.
+  </para>
+  <para>
+   To skip wide usage of the PEAR web frontend, I strongly recommand to
+   protect the PEAR directory and the go-pear script with a password, i.e.
+   using an <literal>.htaccess</literal> file.
+  </para>
+  <para>
+   The usage of the PEAR web Frontend is very easy, so I don't explain how to
+   click on the different buttons :).
+  </para>
+  <para>
+   <literal>-- Pierre-Alain Joye</literal>
+  </para>
+
+  <para>
+   <figure>
+    <title>The setup script's installing packages</title>
+    <graphic fileref="pear-webinstaller-packages-mozilla.png"/>
+   </figure>
+  </para>
+
+  <para>
+   <figure>
+    <title>The web frontend in action</title>
+    <graphic fileref="pear-webinstaller-install-on-safari.png"/>
+   </figure>
+  </para>
+
+  <glosslist>
+   <glossentry>
+    <glossterm>PHP 4.3.0 and Mac OS X</glossterm>
+    <glossdef><para>http://www.onlamp.com/pub/a/php/2003/01/17/phpcookbook.html</para></glossdef>
+   </glossentry>
+   <glossentry>
+    <glossterm>PHP binaries for Mac OS X</glossterm>
+    <glossdef><para>http://www.entropy.ch/software/macosx/php/</para></glossdef>
+   </glossentry>
+   <glossentry>
+    <glossterm>Misc. articles about php and Mac OS X</glossterm>
+    <glossdef><para>http://www.phpmac.com/</para></glossdef>
+   </glossentry>
+  </glosslist>
+ </section>
+
+ <section id="q3">
+  <title>Question 3: MySQL login problems</title>
+
+  <para>
+   <literal>Q: Since we use MySQL 4.1 users of our website aren't able to
+   login anymore. SELECT id from c_user WHERE login='name' and
+   passwd=password('passwd') always returns an empty result set.  This also
+   happens when I use the external MySQL 4.1 library instead of the bundled
+   lib.  Do we need to switch from ext/mysql to ext/mysqli to solve this
+   problem?</literal>
+  </para>
+  <para>
+   A: As described in the manual the <function>password</function> function
+   should only be used for operations on the mysql user table. For encrypting
+   passwords in other tables, you should use <function>md5</function> or
+   <function>sha</function>.  From MySQL 4.0 to 4.1 the
+   <function>password</function>-function changed: It has now a stronger and
+   better encryption: The encrypted string is salted, and it's length changed
+   from 16 to 45 chars. Fortunately MySQL AB developers implemented a
+   workaround: the function <function>old_password</function> which supports
+   the old encryption.
+  </para>
+  <para>
+   <screen><![CDATA[
+        mysql> select password("php magazine");
+        +-----------------------------------------------+
+        | password("php magazine")                      |
+        +-----------------------------------------------+
+        | *9fba5e64a7c11ce87d229c43cdb0f0ab87f7886dd698 |
+        +-----------------------------------------------+
+        1 row in set (0.00 sec)
+        
+        mysql> select old_password("php magazine");
+        +------------------------------+
+        | old_password("php magazine") |
+        +------------------------------+
+        | 001b8f92205d4470             |
+        +------------------------------+
+        1 row in set (0.00 sec)]]></screen>
+  </para>
+  <para>
+   Because there is no function to decrypt a stored password, it's only
+   possible to change the password to an md5 or sha encrypted value, with the
+   interaction of the user during the login process.
+  </para>
+  <para>
+   <literal>-- Georg Richter</literal>
+  </para>
+ </section>
+
+ <section id="q4">
+  <title>Question 4: MySQL random rows</title>
+
+  <para>
+   <literal>Q: Last year we launched a single community portal which has over
+   100.000 active members.  Since we implemented a little box which shows five
+   random entries with user ads on the entry page we noticed a heavy load and
+   speed loss on our system.  As suggested in the MySQL manual we use the
+   order by <function>rand</function> method in combination with
+   LIMIT</literal>.
+  </para>
+  <para>
+   A: Order by <function>rand</function> might be an useful feature for
+   smaller tables. Depending on the selected columns it requires a full index-
+   or tablescan which is very expensive: For selecting five rows from 100.000
+   rows, MySQL has to read all 100.000 rows and sort it by random. The best
+   way to select random entries from large tables is to use the MySQL Handler
+   (this requires a MySQL-Version &gt; 4.0.2).
+  </para>
+  <para>
+   First determine the number of rows in your ads table:
+  </para>
+  <para>
+   <screen><![CDATA[
+        if ($result = mysql_unbuffered_query("SELECT COUNT(*) FROM ads")) {
+           $row = mysql_fetch_row($result);
+           $total = $row[0];
+           mysql_free_result($result);
+        }]]></screen>
+  </para>
+  <para>
+   On client side you now have to create 5 diffrent random values between 1
+   and <literal>$total</literal> (be sure to check possible duplicate values).
+  </para>
+  <para>
+   Hopefully lot of users found a partner via your site and removed or
+   deactivated their ads. Otherwise it would be easy now to select some random
+   rows, cause there are no gaps in your (autoincrement-) id's:
+  </para>
+  <para>
+   <screen><![CDATA[$result = mysql_query("SELECT columns from ads WHERE id in (....)");]]></screen>
+  </para>
+  <para>
+   When you have some gaps in your id, this solution will not work of cause.
+   In this case <literal>HANDLER</literal> is a good and fast way.
+   <literal>HANDLER</literal> provides a low-level interface for table
+   handlers which bypasses the optimzer and accesses table content directly:
+  </para>
+  <para>
+   <screen><![CDATA[mysql_query("HANDLER cuser open");]]></screen>
+  </para>
+  <para>
+   This opens the handler for read access.  Now you can fetch the diffrent
+   rows with your calculated random values:
+  </para>
+  <para>
+   <screen><![CDATA[
+        $result = mysql_query("HANDLER cuser READ first LIMIT $rand_1, 1");
+        /* fetch rows from result set */
+        ...
+
+        $result = mysql_query("HANDLER cuser READ first LIMIT $rand_2, 1");
+        ..]]></screen>
+  </para>
+  <para>
+   After fetching all rows you have to close the handler:
+  </para>
+  <para>
+   <screen><![CDATA[mysql_query("HANDLER cuser CLOSE");]]></screen>
+  </para>
+  <para>
+   <literal>-- Georg Richter</literal>
+  </para>
+ </section>
+
+ <section id="q5">
+  <title>Question 5: Syntax highlighting</title>
+  <para>
+   <literal>Q: I have wanted to hack up a cross-referencer for some time. Sat
+   down to play with Listings 1 and 2  of 'Under the Hood (3.2003)' but
+   rapidly realised that there is no apparent linkage between the available
+   functions (man App CI) and code/printout line numbers. (Yet there is at the
+   compile/debug phase!?)</literal>
+  </para>
+  <para>
+   <literal>Looked at a few of the pretty-printer scripts (syntax
+   highlighter) but none of them (at least of the two/three I examined) seems
+   to use the technique/token_get_all().
+  </literal>
+  </para>
+  <para>
+   <literal>Short of merging the source code with the tokens how can the array of
+   tokens be related to code line numbers as required for the
+   tools/applications of the technique mentioned above/in the article?
+   </literal>
+  </para>
+  <para>
+   A: The <literal>T_WHITESPACE</literal> as shown on page 70 includes the
+   newlines, but that was not printed in the magazine for obvious reasons. The
+   token is matched by the engine on <literal>[ \n\r\t]+</literal> which
+   includes the new line characters. By examinating the
+   <literal>T_WHITESPACE</literal> you will be able to deterine the line
+   number. (Of course you need to check all other tokens that can contain
+   whitespace too, like <literal>T_CLOSE_TAG</literal>,
+   <literal>T_ENCAPSED_AND_WHITESPACE</literal>,
+   <literal>T_OPEN_TAG</literal>, <literal>T_CLOSE_TAG</literal>,
+   <literal>T_COMMENT</literal>,
+   <literal>T_CONSTANT_ENCAPSED_STRING</literal>, <literal>T_STRING</literal>,
+   <literal>T_INLINE_HTML</literal>, <literal>T_START_HEREDOC</literal> and
+   <literal>T_END_HEREDOC</literal>. As you see this is quite a list and I
+   might have even missed some cases. The best way to do it is by using the
+   <function>highlight_string</function> in PHP. The article <literal>Error
+   handling</literal> article in this issue gives you some nice example on how
+   to use syntax highlighting.
+  </para>
+  <para>
+   <literal>-- Derick Rethans</literal>
+  </para>
+
+  <glosslist>
+   <glossentry>
+    <glossterm>http://www.php.net/highlight-string</glossterm>
+    <glossdef><para>documentation for <function>highlight_string</function></para></glossdef>
+   </glossentry>
+  </glosslist>
+ </section>
+</article>
+<!-- keep this comment at the end of the file
+vim600: syn=xml fen fdm=syntax fdl=4 si
+vim: et tw=78 syn=sgml
+vi: ts=1 sw=1
+-->

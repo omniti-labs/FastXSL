@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE article SYSTEM "{DTD_PATH}" [
+
+]>
+<!-- $Revision: 1.1.1.1 $ -->
+<article>
+ <articleinfo>
+  <title>MySQL and the GPL</title>
+  <subtitle>An interview</subtitle>
+ </articleinfo>
+
+ <epigraph>
+  <para>
+   With MySQL 4.0 the licence of the client libraries changed from LGPL to GPL.
+   Because this has quite some consequences for PHP users too I had an
+   interview with MySQL's community advocate discussing why MySQL moved and
+   what happens for PHP users that also use MySQL.
+  </para>
+ </epigraph>
+
+ <section>
+  <title>&#160;</title>
+  <para>
+   <literal>DR: Why has MySQL changed the licence for the client libraries from
+   GNU LGPL (the GNU Library (or Lesser) General Public License) to GNU GPL
+   (the GNU General Public License)?</literal>
+  </para>
+  <para>
+   ZG: First, having a GPL-licensed client lets us more easily differentiate
+   between a proprietary user who should buy a commercial license and a free
+   software user who should use the software under the terms of the GPL.
+  </para>
+  <para>
+   Second, rather than having multiple licenses to deal with, our users now
+   only have to deal with one license: either the GPL or a commercial license.
+  </para>
+ </section>
+
+ <section>
+  <title>&#160;</title>
+  <para>
+   <literal>DR: Did you think about how the MySQL community might think of the
+   license change from LGPL to GPL?</literal>
+  </para>
+  <para>
+   ZG: Of course! Our users and community are very important to us.
+  </para>
+  <para>
+   We expected that users who wish to use MySQL without licensing fees, but who
+   do not wish to pass the freedoms that we give them with the GPL to other
+   users, would be disappointed by the change.
+  </para>
+  <para>
+   While we want our users and community to be happy, we do not believe that
+   people should get the product without either commitment to community ideals
+   or some cost.
+  </para>
+  <para>
+   However, in some cases, we will grant commercial licenses at no cost (or add
+   an exception to our licensing) so that we can support worthy community,
+   charity or educational ventures.
+  </para>
+  <para>
+   Community members that believe in the Free Software philosophy would, of
+   course, support the change.
+  </para>
+  <para>
+   Community members who support Open Source and dislike the GPL would not
+   like the fact that their code could no longer be linked with the MySQL
+   client libraries.  This aspect concerned us the most.
+  </para>
+  <para>
+   While we support the Free Software ideals, we also support the Open Source
+   community. We do not want to punish people who choose to release their code
+   for the greater good.
+  </para>
+ </section>
+
+ <section>
+  <title>&#160;</title>
+  <para>
+   <literal>DR: But that is what is happening with the PHP community right now
+   - we cannot distribute the new MySQL client library under its current
+   licensing terms.  Does this affect the thinking inside the
+   company?</literal>
+  </para>
+  <para>
+   ZG: The PHP community has always been a great friend to MySQL and we do not
+   want to hurt them (or, by side effect, our own community).
+  </para>
+  <para>
+   We are currently working on a license exception that I hope will allow both
+   Free and Open Source software to link with the MySQL client library.
+   Unfortunately, this will weaken the application of the GPL to the client
+   library. However, we feel that something like this is the best type of
+   compromise for the Free Software community, the Open Source community and
+   MySQL as a company and a community.
+  </para>
+ </section>
+
+ <section>
+  <title>&#160;</title>
+  <para>
+   <literal>DR: What about people selling PHP scripts which use MySQL, in which
+   of the groups do they fall?</literal>
+  </para>
+  <para>
+   ZG: If someone is distributing script under a closed license that uses
+   MySQL, then they are creating a combined work that includes GPL-licensed
+   software. They should purchase a proprietary license.
+  </para>
+  <para>
+   If they are selling access to a site or service that use proprietary code,
+   but they are not distributing the application, then they are free to use
+   GPL-licensed code.
+  </para>
+ </section>
+
+ <section>
+  <title>&#160;</title>
+  <para>
+   <literal>DR: Will this exception affect distribution only, or usage
+   too?</literal>
+  </para>
+  <para>
+   ZG: If you do not distribute, you will not breach the terms of the GPL.  The
+   exception is only needed for distributed code.
+  </para>
+ </section>
+
+ <section>
+  <glosslist>
+   <glossentry>
+    <glossterm>http://www.mysql.com/</glossterm>
+    <glossdef><para>MySQL Website</para></glossdef>
+   </glossentry>
+  </glosslist>
+ </section>
+</article>
+<!-- keep this comment at the end of the file
+vim600: syn=xml fen fdm=syntax fdl=4 si
+vim: et tw=78 syn=sgml
+vi: ts=1 sw=1
+-->
