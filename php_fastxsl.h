@@ -71,7 +71,7 @@ typedef struct {
 typedef struct {
 	xsltStylesheetPtr ss;
 	int allocsize;
-	int mtime;
+	time_t mtime;
 	int persistant;
 } php_ss_wrapper;
 
