@@ -13,6 +13,7 @@
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
   | Author: Sterling Hughes <sterling@php.net>                           |
+  |         George Schlossnagle <george@omniti.com>                      |
   +----------------------------------------------------------------------+
 
   $Id: fastxsl.c,v 1.1.1.1 2004/02/17 23:31:44 sterling Exp $ 
