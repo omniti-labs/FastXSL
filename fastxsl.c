@@ -57,6 +57,8 @@ static int le_fastxsl_document;
 #define FASTXSL_PRM_ALLOC 1
 #define FASTXSL_SHARED_ALLOC 2
 
+void fastxsl_errorfunc(void *ctx, const char *msg, ...);
+
 static php_ss_wrapper *
 SS_Wrapper_Alloc(int shared TSRMLS_DC)
 {
@@ -379,7 +381,7 @@ PHP_FUNCTION(fastxsl_stylesheet_parsefile)
 	}
 
 	wrapper = (php_ss_wrapper *) SS_Wrapper_Alloc(0 TSRMLS_CC);
-	wrapper->ss = xsltParseStylesheetFile((const xmlChar *) filename);
+	wrapper->ss = xsltParseStylesheetFile(filename);
 	if (!wrapper->ss) {
 		RETURN_FALSE;
 	}
@@ -546,6 +548,7 @@ PHP_FUNCTION(fastxsl_shmcache_transform)
 		}
 	}
 
+	wrapper = (php_ss_wrapper *) SS_Wrapper_Alloc(0 TSRMLS_CC);
 	result_wrapper->xd = xsltApplyStylesheet(ss_wrapper->ss, xd_wrapper->xd, 
 			(const char **) parameters);
 
@@ -903,6 +906,34 @@ XD_Wrapper_Dtor(zend_rsrc_list_entry *rsrc TSRMLS_DC)
 	free(wrapper);
 }
 
+void fastxsl_errorfunc(void *ctx, const char *msg, ...)
+{
+	char *frag;
+	int fraglen;
+	int output = 0;
+	va_list args;
+	va_start(args, msg);
+	fraglen = vspprintf(&frag, 0, msg, args);
+	while(fraglen && frag[fraglen - 1] == '\n') {
+		frag[--fraglen] = '\0';
+		output = 1;
+	}
+	if(fraglen) {
+		if(FASTXSL_G(errbuf)) {
+			FASTXSL_G(errbuf) = erealloc(FASTXSL_G(errbuf), fraglen + strlen(FASTXSL_G(errbuf)));
+			strcat(FASTXSL_G(errbuf), frag);
+		} else {
+			FASTXSL_G(errbuf) = frag;
+		}
+	}
+	va_end(args);
+	if(output) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, FASTXSL_G(errbuf));
+		efree(FASTXSL_G(errbuf));
+		FASTXSL_G(errbuf) = NULL;
+	}
+}
+
 static int 
 Stream_MatchWrapper(const char *filename)
 {
@@ -1029,7 +1060,7 @@ static void fastxsl_ext_function(xmlXPathParserContextPtr ctxt, int nargs)
 	}
 	fname = xmlXPathPopString(ctxt);
 	if(!fname) {
-		xsltGenericDebug(xsltGenericDebugContext,
+		xsltGenericError(xsltGenericDebugContext,
 			"passed function name is not a string");
 		xmlXPathReturnEmptyString(ctxt);
 		goto cleanup;
@@ -1041,7 +1072,7 @@ static void fastxsl_ext_function(xmlXPathParserContextPtr ctxt, int nargs)
 	ZVAL_FALSE(ret);
 	if(call_user_function(EG(function_table), NULL, function, ret, 
 	                         param_count, params TSRMLS_CC) == FAILURE) {
-			xsltGenericDebug(xsltGenericDebugContext,
+			xsltGenericError(xsltGenericDebugContext,
 				"function evaluation error");
 		xmlXPathReturnEmptyString(ctxt);
 		goto cleanup;
@@ -1095,7 +1126,7 @@ PHP_MINIT_FUNCTION(fastxsl)
 	char    euid[30];
 
 	ZEND_INIT_MODULE_GLOBALS(fastxsl, php_fastxsl_init_globals, php_fastxsl_destroy_globals);
-
+	
 	REGISTER_INI_ENTRIES();
 	
 	le_fastxsl_stylesheet = zend_register_list_destructors_ex(SS_Wrapper_Dtor, NULL, 
@@ -1110,7 +1141,8 @@ PHP_MINIT_FUNCTION(fastxsl)
 	xmlMemGet(&free_ptr, &malloc_ptr, &realloc_ptr, &strdup_ptr);
 	xmlRegisterOutputCallbacks(Stream_MatchWrapper, Stream_XmlWrite_OpenWrapper, 
 			                   Stream_XmlWrite_WriteWrapper, Stream_CloseWrapper);
-	
+	xsltSetGenericErrorFunc(NULL, fastxsl_errorfunc);
+	xmlSetGenericErrorFunc(NULL, fastxsl_errorfunc);
 #ifdef FASTXSL_MM
 	if (!sprintf(euid, "%d", geteuid())) {
 		return FAILURE;

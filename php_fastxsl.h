@@ -83,6 +83,7 @@ typedef struct {
 typedef struct {
 	fl_cache *cache;
 	char     *shmpath;
+	char     *errbuf;
 	long      nostat;
 	long      register_functions;
 	long      tmp_allocated_size;
