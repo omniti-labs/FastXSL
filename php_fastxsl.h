@@ -79,6 +79,7 @@ typedef struct {
 	fl_cache *cache;
 	char     *shmpath;
 	long      nostat;
+	long      register_functions;
 	long      tmp_allocated_size;
 } zend_fastxsl_globals;
 

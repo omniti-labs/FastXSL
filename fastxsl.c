@@ -947,9 +947,120 @@ php_fastxsl_destroy_globals(zend_fastxsl_globals *globals)
 	}
 }
 
+/* {{{ php function -> xslt exporting
+ */
+ 
+static void fastxsl_ext_function(xmlXPathParserContextPtr ctxt, int nargs)
+{
+	xsltTransformContextPtr tctxt;
+	zval **params;
+	zval *param;
+	zval *function = NULL;
+	zval *ret = NULL;
+	xmlChar *fname;
+	int param_count = nargs - 1;
+	int i;
+	
+	tctxt = xsltXPathGetTransformContext(ctxt);
+	if (tctxt == NULL) {
+		xsltGenericError(xsltGenericErrorContext,
+		"fastxsl extension functions: failed to get the transformation context\n");
+		return;
+	}
+	/* allocate for args.  first position is function name */
+	params = emalloc(sizeof(zval *) * param_count);
+	for(i = param_count - 1; i >=0; i--) {
+		xmlXPathObjectPtr obj;
+		xmlChar *tmp;
+		obj = valuePop(ctxt);
+		MAKE_STD_ZVAL(param);
+		switch(obj->type) {
+			case XPATH_UNDEFINED:
+				ZVAL_NULL(param);
+				break;
+			case XPATH_NODESET:
+				tmp = xmlXPathCastToString(obj);
+				ZVAL_STRING(param, tmp, 1);
+				xmlFree(tmp);
+				break;
+			case XPATH_BOOLEAN:
+				ZVAL_BOOL(param, obj->boolval);
+				break;
+			case XPATH_NUMBER:
+				ZVAL_DOUBLE(param, obj->floatval);
+				break;
+			case XPATH_STRING:
+				ZVAL_STRING(param, obj->stringval, 1);
+				break;
+			default:
+				zend_error(E_WARNING, "inexact type conversion %d", obj->type);
+				tmp = xmlXPathCastToString(obj);
+				ZVAL_STRING(param, tmp, 1);
+				xmlFree(tmp);
+				break;
+		}
+		params[i] = param;
+		xmlXPathFreeObject(obj);
+	}
+	fname = xmlXPathPopString(ctxt);
+	if(!fname) {
+		xsltGenericDebug(xsltGenericDebugContext,
+			"passed function name is not a string");
+		xmlXPathReturnEmptyString(ctxt);
+		goto cleanup;
+	}
+	MAKE_STD_ZVAL(function);
+	ZVAL_STRING(function, fname, 1);
+	xmlFree(fname);
+	MAKE_STD_ZVAL(ret);
+	ZVAL_FALSE(ret);
+	if(call_user_function(EG(function_table), NULL, function, ret, 
+	                         param_count, params TSRMLS_CC) == FAILURE) {
+			xsltGenericDebug(xsltGenericDebugContext,
+				"function evaluation error");
+		xmlXPathReturnEmptyString(ctxt);
+		goto cleanup;
+	}
+	switch(ret->type) {
+		case IS_BOOL:
+			xmlXPathReturnBoolean(ctxt, Z_BVAL_P(ret));
+			break;
+		case IS_LONG:
+			xmlXPathReturnNumber(ctxt, (float) Z_LVAL_P(ret));
+			break;
+		case IS_DOUBLE:
+			xmlXPathReturnNumber(ctxt, Z_DVAL_P(ret));
+			break;
+		case IS_STRING:
+			xmlXPathReturnString(ctxt, xmlStrdup(Z_STRVAL_P(ret)));
+			break;
+		default:
+			convert_to_string_ex(&ret);
+			xmlXPathReturnString(ctxt, xmlStrdup(Z_STRVAL_P(ret)));
+			break;
+	}
+cleanup:
+	if(params) {
+		for(i=0; i < param_count; i++) {
+			zval_ptr_dtor(&params[i]);
+		}
+		efree(params); params = NULL;
+	}
+	if(function) {
+		efree(function); function = NULL;
+	}
+	if(ret) {
+		efree(ret); ret = NULL;
+	}
+	return;
+}		
+/* }}} */
+
+
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("fastxsl.shmpath", "/tmp/fastxsl_mem", PHP_INI_SYSTEM, OnUpdateString, shmpath, zend_fastxsl_globals, fastxsl_globals)
 	STD_PHP_INI_BOOLEAN("fastxsl.nostat", "0", PHP_INI_ALL, OnUpdateInt, nostat, zend_fastxsl_globals, fastxsl_globals) 
+	STD_PHP_INI_BOOLEAN("fastxsl.register_functions", "0", PHP_INI_ALL, OnUpdateInt, register_functions, zend_fastxsl_globals, fastxsl_globals) 
 PHP_INI_END()
 
 PHP_MINIT_FUNCTION(fastxsl)
@@ -998,7 +1109,12 @@ PHP_MINIT_FUNCTION(fastxsl)
 	FASTXSL_G(cache)->table = fl_hash_new(&mm_allocators, NULL);
 	mm_unlock(FASTXSL_G(cache)->mm);
 	FASTXSL_G(cache)->prmtable = fl_hash_new(&normal_allocators, NULL);
-
+	
+	if(FASTXSL_G(register_functions)) {
+		xsltRegisterExtModuleFunction ((const xmlChar *) "function",
+					   (const xmlChar *) "http://php.net/fastxsl",
+					   fastxsl_ext_function);
+	}
 	return SUCCESS;
 }
 
