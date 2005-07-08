@@ -74,8 +74,8 @@ SS_Wrapper_Alloc(int shared TSRMLS_DC)
 		}
 		wrapper->persistant = 1;
 #else
-        wrapper = (php_ss_wrapper *) calloc(1, sizeof(php_ss_wrapper));
-        wrapper->persistant = 1;
+		wrapper = (php_ss_wrapper *) calloc(1, sizeof(php_ss_wrapper));
+		wrapper->persistant = 1;
 #endif
 	} else {
 		wrapper = (php_ss_wrapper *) calloc(1, sizeof(php_ss_wrapper));
@@ -912,7 +912,7 @@ void fastxsl_errorfunc(void *ctx, const char *msg, ...)
 	int fraglen;
 	int output = 0;
 	va_list args;
-    TSRMLS_FETCH();
+	TSRMLS_FETCH();
 
 	va_start(args, msg);
 	fraglen = vspprintf(&frag, 0, msg, args);
@@ -1018,7 +1018,7 @@ static void fastxsl_ext_function(xmlXPathParserContextPtr ctxt, int nargs)
 	xmlChar *fname;
 	int param_count = nargs - 1;
 	int i;
-    TSRMLS_FETCH();
+	TSRMLS_FETCH();
 	
 	tctxt = (xsltTransformContextPtr) xsltXPathGetTransformContext(ctxt);
 	if (tctxt == NULL) {
@@ -1189,7 +1189,7 @@ PHP_MINFO_FUNCTION(fastxsl)
 	php_info_print_table_row(2, "libxml Version", LIBXML_DOTTED_VERSION);
 	php_info_print_table_row(2, "libxslt Version", LIBXSLT_DOTTED_VERSION);
 #if HAVE_DOMEXSLT
-    php_info_print_table_row(2, "libexslt Version", LIBEXSLT_DOTTED_VERSION);
+	php_info_print_table_row(2, "libexslt Version", LIBEXSLT_DOTTED_VERSION);
 #endif
 	php_info_print_table_end();
 }

@@ -61,12 +61,12 @@ void fl_hash_free(FL_Hash *table)
 
 static unsigned int hash_hash(const char *key, int length)
 {
-    unsigned int hash = 0;
+	unsigned int hash = 0;
 
-    while (--length)
-        hash = hash * 65599 + *key++;
+	while (--length)
+		hash = hash * 65599 + *key++;
 
-    return hash;
+	return hash;
 }
 
 void *fl_hash_find(FL_Hash *table, const void *key, int length)
@@ -74,15 +74,15 @@ void *fl_hash_find(FL_Hash *table, const void *key, int length)
 	FL_Bucket       *b;
 	unsigned int  hash = hash_hash(key, length) % FL_HASH_SIZE;
 
-    for (b = table->buckets[ hash ]; b; b = b->next) {
+	for (b = table->buckets[ hash ]; b; b = b->next) {
 		if (hash != b->hash) continue;
 		if (length != b->length) continue;
 		if (memcmp(key, b->key, length)) continue;
 
 		return b->data;
-    }
+	}
 
-    return NULL;
+	return NULL;
 }
 
 void fl_hash_add(FL_Hash *table, char *key, int length, void *data)
@@ -113,7 +113,7 @@ void fl_hash_delete(FL_Hash *table, char *key, int length)
 	unsigned int  hash;
 
 	hash = hash_hash(key, length) % FL_HASH_SIZE;
-    for (b = table->buckets[ hash ]; b; b = b->next) {
+	for (b = table->buckets[ hash ]; b; b = b->next) {
 		if (hash != b->hash || length != b->length || memcmp(key, b->key, length)) {
 			prev = b;
 			continue;
@@ -131,7 +131,7 @@ void fl_hash_delete(FL_Hash *table, char *key, int length)
 		table->mems->free_func(b);
 
 		break;
-    }
+	}
 }
 
 /*
