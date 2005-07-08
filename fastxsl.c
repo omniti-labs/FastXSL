@@ -269,7 +269,7 @@ ShmCache_Stylesheet_Delete(char *filename, size_t filename_len)
 #endif
 
 static php_ss_wrapper *
-PrmCache_Stylesheet_ParseAndStore(char *filename, size_t filename_len, int mtime)
+PrmCache_Stylesheet_ParseAndStore(char *filename, size_t filename_len, int mtime TSRMLS_DC)
 {
 	php_ss_wrapper *wrapper;
 
@@ -287,7 +287,7 @@ PrmCache_Stylesheet_ParseAndStore(char *filename, size_t filename_len, int mtime
 }
 
 static void
-PrmCache_Stylesheet_Free(php_ss_wrapper *wrapper)
+PrmCache_Stylesheet_Free(php_ss_wrapper *wrapper TSRMLS_DC)
 {
 	if (wrapper->ss) {
 		xsltFreeStylesheet(wrapper->ss);
@@ -912,6 +912,8 @@ void fastxsl_errorfunc(void *ctx, const char *msg, ...)
 	int fraglen;
 	int output = 0;
 	va_list args;
+    TSRMLS_FETCH();
+
 	va_start(args, msg);
 	fraglen = vspprintf(&frag, 0, msg, args);
 	while(fraglen && frag[fraglen - 1] == '\n') {
@@ -1016,6 +1018,7 @@ static void fastxsl_ext_function(xmlXPathParserContextPtr ctxt, int nargs)
 	xmlChar *fname;
 	int param_count = nargs - 1;
 	int i;
+    TSRMLS_FETCH();
 	
 	tctxt = (xsltTransformContextPtr) xsltXPathGetTransformContext(ctxt);
 	if (tctxt == NULL) {
@@ -1115,8 +1118,8 @@ cleanup:
 
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("fastxsl.shmpath", "/tmp/fastxsl_mem", PHP_INI_SYSTEM, OnUpdateString, shmpath, zend_fastxsl_globals, fastxsl_globals)
-	STD_PHP_INI_BOOLEAN("fastxsl.nostat", "0", PHP_INI_ALL, OnUpdateInt, nostat, zend_fastxsl_globals, fastxsl_globals) 
-	STD_PHP_INI_BOOLEAN("fastxsl.register_functions", "0", PHP_INI_ALL, OnUpdateInt, register_functions, zend_fastxsl_globals, fastxsl_globals) 
+	STD_PHP_INI_BOOLEAN("fastxsl.nostat", "0", PHP_INI_ALL, OnUpdateLong, nostat, zend_fastxsl_globals, fastxsl_globals) 
+	STD_PHP_INI_BOOLEAN("fastxsl.register_functions", "0", PHP_INI_ALL, OnUpdateLong, register_functions, zend_fastxsl_globals, fastxsl_globals) 
 PHP_INI_END()
 
 PHP_MINIT_FUNCTION(fastxsl)
