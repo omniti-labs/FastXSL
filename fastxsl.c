@@ -66,68 +66,6 @@ static void ShmCache_Stylesheet_Free(php_ss_wrapper *wrapper TSRMLS_DC);
 static void _SS_Wrapper_Dtor(php_ss_wrapper *wrapper);
 static void _XD_Wrapper_Dtor(php_xd_wrapper *wrapper);
 
-static unsigned int pool_hash(void *ptr)
-{
-  unsigned long i = (unsigned long) ptr;
-  i /= 8;
-  i *= 99961;
-  return i % 31907;
-}
-static void pool_init(zend_fastxsl_globals *globals)
-{
-  int i;
-
-  globals->pool = calloc(1, sizeof(void **) * 31907);
-  globals->pool_offset = calloc(1, sizeof(int) * 31907);
-  globals->pool_allocd = calloc(1, sizeof(int) * 31907);
-
-  for(i = 0; i < 31907; i++) {
-    globals->pool[i] = calloc(1, sizeof(void *) * 100);
-    globals->pool_allocd[i] = 100;
-  }
-}
-
-static void pool_add(void *ptr)
-{
-  unsigned int slot = pool_hash(ptr);
-  if(FASTXSL_G(pool_offset)[slot] == FASTXSL_G(pool_allocd)[slot] - 1) {
-    FASTXSL_G(pool_allocd)[slot] *= 2;
-    FASTXSL_G(pool)[slot] = realloc(FASTXSL_G(pool)[slot], sizeof(void *) * FASTXSL_G(pool_allocd)[slot]);
-  }
-  FASTXSL_G(pool)[slot][FASTXSL_G(pool_offset)[slot]++] = ptr;
-}
-
-static void pool_remove( void *ptr)
-{
-  int i;
-  unsigned int slot = pool_hash(ptr);
-  for(i = 0; i < FASTXSL_G(pool_offset)[slot]; i++) {
-    if(FASTXSL_G(pool)[slot][i] == ptr) {
-      FASTXSL_G(pool)[slot][i] = NULL;
-    }
-  }
-}
-
-static void pool_clear()
-{
-  int i;
-  for(i = 0; i < 31907; i++) {
-    FASTXSL_G(pool_offset)[i] = 0;
-  }
-}
-
-static void pool_destroy( FL_Free   free_func )
-{
-  int i, j;
-  for(i = 0; i < 31907; i++) {
-    for(j = 0; j < FASTXSL_G(pool_offset)[i]; j++) {
-      if(FASTXSL_G(pool)[i][j]) {
-        free_func(FASTXSL_G(pool)[i][j]);
-      }
-    }
-  }
-}
-
 static php_ss_wrapper *
 SS_Wrapper_Alloc(int shared TSRMLS_DC)
 {
@@ -178,7 +116,6 @@ ShmCache_Free(void *ptr)
 	if(!inshm) assert(0);
 	FASTXSL_G(tmp_allocated_size) -= mm_sizeof(FASTXSL_G(cache)->mm, ptr);
 	mm_free(FASTXSL_G(cache)->mm, ptr);
-	//pool_remove(ptr);
 }
 
 static void *
@@ -197,7 +134,6 @@ ShmCache_Malloc(size_t size)
 	}
 
 	FASTXSL_G(tmp_allocated_size) += size;
-	//pool_add(ptr);
 	return ptr;
 }
 
@@ -209,7 +145,6 @@ ShmCache_Calloc(size_t nmemb, size_t size)
 	if(!inshm) assert(0);
 	ptr = ShmCache_Malloc(nmemb * size);
 	memset(ptr, 0, nmemb * size);
-	//pool_add(ptr);
 	return ptr;
 }
 
@@ -232,8 +167,6 @@ ShmCache_Realloc(void *ptr, size_t size)
 		return NULL;
 	}
 	FASTXSL_G(tmp_allocated_size) += (size - oldsize);
-	//pool_remove(ptr);
-	//pool_add(newptr);
 	return newptr;
 }
 
@@ -314,12 +247,10 @@ ShmCache_Stylesheet_ParseAndStore(char *filename, size_t filename_len, int mtime
 	FASTXSL_G(tmp_allocated_size) = 0;
 inshm = 1;
 	zend_set_timeout(0);
-	//pool_clear();
 	wrapper->ss = xsltParseStylesheetFile(filename);
 inshm = 0;
 	Xml_UseAllocationFunctions();
 	if (!wrapper->ss) {
-		//pool_destroy(ShmCache_Free);
 		_SS_Wrapper_Dtor(wrapper);
 		return NULL;
 	}
@@ -1189,7 +1120,6 @@ php_fastxsl_init_globals(zend_fastxsl_globals *globals)
 	memset(globals, 0, sizeof(zend_fastxsl_globals));
 	
 	globals->cache = calloc(1, sizeof(fl_cache));
-        //pool_init(globals);
 }
 
 
