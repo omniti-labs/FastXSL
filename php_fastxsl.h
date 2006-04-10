@@ -64,7 +64,12 @@ extern zend_module_entry fastxsl_module_entry;
 
 PHP_MINIT_FUNCTION(fastxsl);
 PHP_MSHUTDOWN_FUNCTION(fastxsl);
+PHP_RINIT_FUNCTION(fastxsl);
+PHP_RSHUTDOWN_FUNCTION(fastxsl);
 PHP_MINFO_FUNCTION(fastxsl);
+
+#define FASTXSL_PRMALLOC 0
+#define FASTXSL_SHMALLOC 1
 
 typedef struct {
 #ifdef FASTXSL_MM
@@ -77,13 +82,16 @@ typedef struct {
 
 typedef struct {
 	xmlDocPtr xd;
+	int alloc_type;
 } php_xd_wrapper;
 
 typedef struct {
 	xsltStylesheetPtr ss;
 	int allocsize;
 	time_t mtime;
+	int hits;
 	int persistant;
+	int alloc_type;
 } php_ss_wrapper;
 
 typedef struct {
@@ -93,6 +101,9 @@ typedef struct {
 	long      nostat;
 	long      register_functions;
 	long      tmp_allocated_size;
+	void	 ***pool;
+	int      *pool_offset;
+        int      *pool_allocd;
 } zend_fastxsl_globals;
 
 #ifdef ZTS

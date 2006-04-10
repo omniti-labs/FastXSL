@@ -52,7 +52,7 @@ typedef struct _Hash {
 FL_Hash *fl_hash_new(FL_Allocator *, FL_HashDtor);
 void fl_hash_free(FL_Hash *table);
 void *fl_hash_find(FL_Hash *table, const void *key, int length);
-void fl_hash_add(FL_Hash *table, char *key, int length, void *data);
+int fl_hash_add(FL_Hash *table, char *key, int length, void *data);
 void fl_hash_delete(FL_Hash *table, char *key, int length);
 #endif
 

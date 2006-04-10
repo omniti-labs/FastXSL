@@ -73,24 +73,30 @@ void *fl_hash_find(FL_Hash *table, const void *key, int length)
 {
 	FL_Bucket       *b;
 	unsigned int  hash = hash_hash(key, length) % FL_HASH_SIZE;
-
 	for (b = table->buckets[ hash ]; b; b = b->next) {
 		if (hash != b->hash) continue;
 		if (length != b->length) continue;
 		if (memcmp(key, b->key, length)) continue;
-
 		return b->data;
 	}
 
 	return NULL;
 }
 
-void fl_hash_add(FL_Hash *table, char *key, int length, void *data)
+int fl_hash_add(FL_Hash *table, char *key, int length, void *data)
 {
-	FL_Bucket       *b;
+	FL_Bucket       *b, *ptr;
 	unsigned int  hash;
 	
 	hash = hash_hash(key, length) % FL_HASH_SIZE;
+	/* check hash for dupes */
+	ptr = table->buckets[ hash ];
+	while(ptr) {
+		if(!strcmp(ptr->key, key)) {
+			return 0;
+		}
+		ptr = ptr->next;
+	}
 
 	b = table->mems->malloc_func(sizeof(FL_Bucket));
 	b->key = table->mems->malloc_func(length + 1);
@@ -99,11 +105,11 @@ void fl_hash_add(FL_Hash *table, char *key, int length, void *data)
 	b->length = length;
 	b->hash = hash;
 	b->data = data;
-
 	b->next = table->buckets[ hash ];
 
 	table->buckets[ hash ] = b;
 	table->nElements++;
+	return 1;
 }
 
 void fl_hash_delete(FL_Hash *table, char *key, int length)
