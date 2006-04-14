@@ -99,11 +99,9 @@ typedef struct {
 	char     *shmpath;
 	char     *errbuf;
 	long      nostat;
+	long      memalloc;
 	long      register_functions;
 	long      tmp_allocated_size;
-	void	 ***pool;
-	int      *pool_offset;
-        int      *pool_allocd;
 } zend_fastxsl_globals;
 
 #ifdef ZTS
