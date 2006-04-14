@@ -400,8 +400,9 @@ PHP_FUNCTION(fastxsl_shmcache_getstatistics)
 	add_assoc_zval(return_value, "files", files_array);
 
 	add_assoc_long(return_value, "apparent_allocated", allocated_bytes);
-	add_assoc_long(return_value, "allocated", mm_maxsize() - mm_available(FASTXSL_G(cache)->mm));
-	add_assoc_long(return_value, "shm_size", (long) mm_maxsize());
+	add_assoc_long(return_value, "allocated", 
+          (FASTXSL_G(memalloc)?FASTXSL_G(memalloc):mm_maxsize()) - mm_available(FASTXSL_G(cache)->mm));
+	add_assoc_long(return_value, "shm_size", (long) FASTXSL_G(memalloc)?FASTXSL_G(memalloc):mm_maxsize());
 	mm_unlock(FASTXSL_G(cache)->mm);
 }
 
