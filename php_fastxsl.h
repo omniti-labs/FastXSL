@@ -104,6 +104,8 @@ typedef struct {
 	long      tmp_allocated_size;
 } zend_fastxsl_globals;
 
+#define PHP_FASTXSL_VERSION "1.0"
+
 #ifdef ZTS
 #define FASTXSL_G(v) TSRMG(fastxsl_globals_id, zend_fastxsl_globals *, v)
 #else

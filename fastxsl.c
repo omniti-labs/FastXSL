@@ -409,6 +409,18 @@ PHP_FUNCTION(fastxsl_shmcache_getstatistics)
 #endif
 /* }}} */
 
+/* {{{ proto array fastxsl_version(void)
+   Returns the version number */
+PHP_FUNCTION(fastxsl_version)
+{
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "") == FAILURE) {
+		return;
+	}
+	RETURN_STRING(PHP_FASTXSL_VERSION, 1);
+}
+
+/* }}} */
+
 /* {{{ proto resource fastxsl_stylesheet_parsefile(string filename)
    Parse a stylesheet file located at filename. */
 PHP_FUNCTION(fastxsl_stylesheet_parsefile)
@@ -937,6 +949,7 @@ function_entry fastxsl_functions[] = {
 	PHP_FE(fastxsl_shmcache_tostring,            NULL)
 	PHP_FE(fastxsl_shmcache_getstatistics,       NULL)
 #endif
+	PHP_FE(fastxsl_version,                      NULL)
 	PHP_FE(fastxsl_prmcache_transform,           NULL)
 	PHP_FE(fastxsl_nocache_transform,            NULL)
 	PHP_FE(fastxsl_nocache_profile,              NULL)
