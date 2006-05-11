@@ -1,0 +1,89 @@
+INI Settings
+==============================================
+
+    Option                  Description
+    ------------------      --------------------------------------------------
+    fastxsl.shmpath         
+                            The path to key your shared memory segment off of.
+                            Depending on which mm implementation you use, this
+                            path may or may not need to be creatable.
+                            (DEFAULT: "/tmp/fastxsl_mem")
+
+    fastxsl.nostat          
+                            Whether or not to check xsl files to determine
+                            if they are changed.  If this is set to '1',
+                            then xsl changes will not be picked up until
+                            the server is restarted.
+                            (DEFAULT: 0)
+
+    fastxsl.memalloc        
+                            The amount of shared memory to allocate to 
+                            FastXSL for caching stylesheets.  If this is
+                            set to 0, FastXSL will allocate as much memory
+                            as libmm will permit it to.
+                            (DEFAULT: 0)
+ 
+    fastxsl.register_functions
+                            Whether or not to register the PHP extension
+                            namespace and allow users to use PHP functions
+                            as XSLT extension functions.
+                            (DEFAULT: 0)
+
+
+EXPORTED FUNCTIONS
+==================
+
+float fastxsl_version()
+                            Returns the version number of the FastXSL library.
+
+resource fastxsl_xml_parsefile(string filename)
+                            Parses the filename in question and returns it
+                            as a FastXSL XML document resource.
+
+resource fastxsl_xml_parsestring(string str)
+                            Parses the string in question and returns it
+                            as a FastXSL XML document resource.
+
+resource fastxsl_shmcache_transform(string xsl, resource xmldoc [, array params])
+                            Apply the XSL stylesheet given by 'xsl' to the xml
+                            document resource given by xmldoc, with optional
+                            XSL params.  The compiled stylesheet will be 
+                            cached in shared memory.  Returns a FastXSL 
+                            result resource.
+
+resource fastxsl_prmcache_transform(string xsl, resource xmldoc [, array params])
+                            Apply the XSL stylesheet given by 'xsl' to the xml
+                            document resource given by xmldoc, with optional
+                            XSL params.  The compiled stylesheet will be 
+                            cached in process-local memory.  Because of the
+                            large amount of memory libxslt uses, use of
+                            the prm functions is discouraged.  Returns a
+                            FastXSL result resource.
+
+resource fastxsl_nocache_transform(string xsl, resource xmldoc [, array params])
+                            Apply the XSL stylesheet given by 'xsl' to the xml
+                            document resource given by xmldoc, with optional
+                            XSL params.  The compiled stylesheet will be 
+                            not be cached.  Returns a FastXSL result resource.
+
+string fastxsl_shmcache_tostring(string xsl, resource fastxsl_result)
+                           Takes a stylesheet and a result resource and
+                           returns the transformed document.  This must
+                           be used with resources created with 
+                           fastxsl_shmcache_transform().
+
+string fastxsl_prmcache_tostring(string xsl, resource fastxsl_result)
+                           Takes a stylesheet and a result resource and
+                           returns the transformed document.  This must
+                           be used with resources created with 
+                           fastxsl_prmcache_transform().
+
+string fastxsl_nocache_tostring(string xsl, resource fastxsl_result)
+                           Takes a stylesheet and a result resource and
+                           returns the transformed document.  This must
+                           be used with resources created with 
+                           fastxsl_nocache_transform().
+                            
+array fastxsl_shmcache_getstatistics()
+                           Returns an array of statistics regarding what
+                           data is cached and how much space it is consuming.                            
