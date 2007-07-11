@@ -42,6 +42,7 @@
 #include <sys/types.h>
 #include <sys/file.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "fl_hash.h"
 #include "php.h"
@@ -49,7 +50,7 @@
 #include "ext/standard/info.h"
 #include "php_fastxsl.h"
 
-ZEND_DECLARE_MODULE_GLOBALS(fastxsl);
+ZEND_DECLARE_MODULE_GLOBALS(fastxsl)
 
 static int inshm = 0;
 
@@ -559,6 +560,14 @@ PHP_FUNCTION(fastxsl_shmcache_transform)
 	zval             *z_parameters;
 	struct stat       sb;
 	int lockfd;
+#ifdef F_SETLK
+	struct flock lock;
+
+	lock.l_start = 0;
+	lock.l_whence = SEEK_SET;
+	lock.l_len = 0;
+#endif
+
 	
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz|z", &ss_filename, &ss_filename_len,
 				&z_xd_wrapper, &z_parameters) == FAILURE) {
@@ -596,7 +605,12 @@ inshm = 0;
 	} else {
 		sb.st_mtime = 0;
 	}
+#ifdef F_SETLK
+	lock.l_type = F_WRLCK;
+	fcntl(lockfd, F_SETLKW, &lock);
+#else
 	flock(lockfd, LOCK_EX);
+#endif
 	mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RW);
 	ss_wrapper = fl_hash_find(FASTXSL_G(cache)->table, ss_filename, ss_filename_len);
 	mm_unlock(FASTXSL_G(cache)->mm);
@@ -606,7 +620,12 @@ inshm = 1;
 		ss_wrapper = ShmCache_Stylesheet_ParseAndStore(ss_filename, ss_filename_len, sb.st_mtime);
 inshm = 0;
 		if (!ss_wrapper) {
+#ifdef F_SETLK
+			lock.l_type = F_UNLCK;
+			fcntl(lockfd, F_SETLK, &lock);
+#else
 			flock(lockfd, LOCK_UN);
+#endif
 			close(lockfd);
 			//xmlCleanupParserr();
 			Xml_UseAllocationFunctions();
@@ -626,7 +645,12 @@ inshm = 0;
 				//xmlCleanupParserr();
 				Xml_UseAllocationFunctions();
 				if (!ss_wrapper) {
+#ifdef F_SETLK
+					lock.l_type = F_UNLCK;
+					fcntl(lockfd, F_SETLK, &lock);
+#else
 					flock(lockfd, LOCK_UN);
+#endif
 					close(lockfd);
 					_XD_Wrapper_Dtor(result_wrapper);
 					free(parameters);
@@ -638,7 +662,12 @@ inshm = 0;
 	ss_wrapper->hits++;
 	//xmlCleanupParserr();
 	Xml_UseAllocationFunctions();
+#ifdef F_SETLK
+	lock.l_type = F_UNLCK;
+	fcntl(lockfd, F_SETLK, &lock);
+#else
 	flock(lockfd, LOCK_UN);
+#endif
 	close(lockfd);
 	result_wrapper->xd = xsltApplyStylesheet(ss_wrapper->ss, xd_wrapper->xd, 
 			(const char **) parameters);
