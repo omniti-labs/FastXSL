@@ -85,8 +85,14 @@ typedef struct {
 	int alloc_type;
 } php_xd_wrapper;
 
+#define FASTXSL_STYLESHEET 1
+#define FASTXSL_XPATHOBJ   2
 typedef struct {
-	xsltStylesheetPtr ss;
+	union {
+		xsltStylesheetPtr ss;
+		xmlXPathObjectPtr op;
+	} data;
+	int data_type;
 	int allocsize;
 	time_t mtime;
 	int hits;
