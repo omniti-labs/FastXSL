@@ -354,7 +354,6 @@ fastxsl_CachedDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
 	xmlXPathFunction func;
 	xmlXPathObjectPtr idoc, obj;
 	int lockfd;
-	int popped = 0;
 	char *ss_filename;
 	int ss_filename_len;
 	struct stat sb;
@@ -411,16 +410,16 @@ inshm = 0;
 			ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
         		ss_wrapper->data_type = FASTXSL_STYLESHEET;
 			func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
+			valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
+			func(ctxt, nargs);
 			ShmCache_UseAllocationFunctions();
 inshm = 1;
 			FASTXSL_G(tmp_allocated_size) = 0;
-			func(ctxt, nargs);
-			ss_wrapper->data.op = ctxt->value;
+			ss_wrapper->data.op = xmlXPathObjectCopy(ctxt->value);
 			ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
-			valuePop(ctxt);
-			popped = 1;
 inshm = 0;
 			Xml_UseAllocationFunctions();
+			valuePop(ctxt);
 			ss_wrapper->mtime = sb.st_mtime;
 			mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
 			rv = fl_hash_add(FASTXSL_G(cache)->table, ss_filename, ss_filename_len, ss_wrapper);
@@ -469,15 +468,15 @@ inshm = 0;
 					ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
         				ss_wrapper->data_type = FASTXSL_STYLESHEET;
 					func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
+					valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
+					func(ctxt, nargs);
 					ShmCache_UseAllocationFunctions();
 inshm = 1;
 					FASTXSL_G(tmp_allocated_size) = 0;
-					func(ctxt, nargs);
-					ss_wrapper->data.op = ctxt->value;
-					valuePop(ctxt);
-					popped = 1;
+					ss_wrapper->data.op = xmlXPathObjectCopy(ctxt->value);
 inshm = 0;
 					Xml_UseAllocationFunctions();
+					valuePop(ctxt);
 					ss_wrapper->mtime = sb.st_mtime;
 					ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
 					mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
@@ -526,7 +525,7 @@ inshm = 0;
 #endif
 	close(lockfd);
 
-	if(!popped) valuePop(ctxt);
+	valuePop(ctxt);
 	valuePush(ctxt, xmlXPathObjectCopy(ss_wrapper->data.op));
 	return;
 error:
@@ -770,7 +769,7 @@ ParseTransformParameters(zval *z_parameters, char ***parameters TSRMLS_DC)
 		return SUCCESS;
 	}
 	
-	*parameters = calloc(1, (zend_hash_num_elements(h_parameters) * (2 * sizeof(char *))) + 1);
+	*parameters = calloc(1, (1 + zend_hash_num_elements(h_parameters) * 2) * sizeof(char *));
 	if (!*parameters) {
 		php_error(E_WARNING, "Cannot allocate parameters array to pass to FastXSL");
 		return FAILURE;
