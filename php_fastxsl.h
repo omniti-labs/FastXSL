@@ -105,6 +105,7 @@ typedef struct {
 	char     *shmpath;
 	char     *errbuf;
 	long      nostat;
+	long      replace_document_function;
 	long      memalloc;
 	long      register_functions;
 	long      tmp_allocated_size;

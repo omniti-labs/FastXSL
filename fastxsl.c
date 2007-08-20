@@ -409,7 +409,12 @@ inshm = 0;
 			int rv;
 			ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
         		ss_wrapper->data_type = FASTXSL_STYLESHEET;
-			func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
+			if(FASTXSL_G(replace_document_function)) {
+				func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"original_document");
+			}
+			else {
+				func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
+			}
 			valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
 			func(ctxt, nargs);
 			ShmCache_UseAllocationFunctions();
@@ -467,7 +472,12 @@ inshm = 0;
 					int rv;
 					ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
         				ss_wrapper->data_type = FASTXSL_STYLESHEET;
-					func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
+					if(FASTXSL_G(replace_document_function)) {
+						func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"original_document");
+					}
+					else {
+						func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
+					}
 					valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
 					func(ctxt, nargs);
 					ShmCache_UseAllocationFunctions();
@@ -927,6 +937,14 @@ inshm = 0;
 
 	ctxt = xsltNewTransformContext(ss_wrapper->data.ss, xd_wrapper->xd);
 #ifdef FASTXSL_MM
+	if(FASTXSL_G(replace_document_function)) {
+		xmlXPathFunction func;
+		func = xmlXPathFunctionLookup(ctxt->xpathCtxt, (const xmlChar *)"document");
+		xmlXPathRegisterFunc(ctxt->xpathCtxt, (const xmlChar *) "original_document", func);
+		xmlXPathRegisterFunc(ctxt->xpathCtxt, (const xmlChar *) "document", NULL);
+		xmlXPathRegisterFunc(ctxt->xpathCtxt, (const xmlChar *) "document",
+					fastxsl_CachedDocumentFunction);
+	}
 	xmlXPathRegisterFunc(ctxt->xpathCtxt, (const xmlChar *) "cached_document",
 				fastxsl_CachedDocumentFunction);
 #endif
@@ -1538,6 +1556,7 @@ cleanup:
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("fastxsl.shmpath", "/tmp/fastxsl_mem", PHP_INI_SYSTEM, OnUpdateString, shmpath, zend_fastxsl_globals, fastxsl_globals)
 	STD_PHP_INI_BOOLEAN("fastxsl.nostat", "0", PHP_INI_ALL, OnUpdateLong, nostat, zend_fastxsl_globals, fastxsl_globals) 
+	STD_PHP_INI_BOOLEAN("fastxsl.replace_document_function", "0", PHP_INI_ALL, OnUpdateLong, replace_document_function, zend_fastxsl_globals, fastxsl_globals) 
 	STD_PHP_INI_BOOLEAN("fastxsl.memalloc", "0", PHP_INI_SYSTEM, OnUpdateLong, memalloc, zend_fastxsl_globals, fastxsl_globals) 
 	STD_PHP_INI_BOOLEAN("fastxsl.register_functions", "0", PHP_INI_ALL, OnUpdateLong, register_functions, zend_fastxsl_globals, fastxsl_globals) 
 PHP_INI_END()
@@ -1601,9 +1620,6 @@ inshm = 1;
 					   (const xmlChar *) "http://php.net/fastxsl",
 					   fastxsl_ext_function);
 	}
-	xsltRegisterExtModuleFunction ((const xmlChar *) "cached_document",
-				   (const xmlChar *) "http://php.net/fastxsl/cached_document",
-				   fastxsl_CachedDocumentFunction);
 	//xmlCleanupParserr();
 inshm = 0;
 	Xml_UseAllocationFunctions();
