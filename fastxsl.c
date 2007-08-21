@@ -348,11 +348,13 @@ ShmCache_Document_Delete(char *filename, size_t filename_len)
 #ifdef FASTXSL_MM
 /* {{{ proto void fastxsl_CachedDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
    Emulate xsltDocumentFunction but leverage the MM shared cache for speed. */
-static void
+void
 fastxsl_CachedDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
 {
 	xmlXPathFunction func;
 	xmlXPathObjectPtr idoc, obj;
+	xsltTransformContextPtr tctxt;
+	xmlChar *base = NULL, *URI;
 	int lockfd;
 	char *ss_filename;
 	int ss_filename_len;
@@ -372,9 +374,23 @@ fastxsl_CachedDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
 		goto error;
 	}
 	obj = ctxt->value;
-	ss_filename_len = strlen((char *)obj->stringval);
+
+	/* Translate this document as would xsltLoadDocument */
+	tctxt = xsltXPathGetTransformContext(ctxt);
+	if ((tctxt != NULL) && (tctxt->inst != NULL)) {
+		base = xmlNodeGetBase(tctxt->inst->doc, tctxt->inst);
+	}
+	else {
+		base = xmlNodeGetBase(tctxt->style->doc,
+					(xmlNodePtr) tctxt->style->doc);
+	}
+	URI = xmlBuildURI(obj->stringval, base);
+	if (base != NULL)               
+		 xmlFree(base);
+
+	ss_filename_len = strlen((char *)URI);
 	ss_filename = alloca(ss_filename_len + 1);
-	strcpy(ss_filename, (char *)obj->stringval);
+	strcpy(ss_filename, (char *)URI);
 
 	lockfd = open(ss_filename, O_RDONLY);
 	if(lockfd < 0) {
