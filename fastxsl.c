@@ -424,23 +424,17 @@ inshm = 0;
         	if(ss_wrapper) {
 			int rv;
 			ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
-        		ss_wrapper->data_type = FASTXSL_STYLESHEET;
-			if(FASTXSL_G(replace_document_function)) {
-				func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"original_document");
-			}
-			else {
-				func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
-			}
-			valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
-			func(ctxt, nargs);
+        		ss_wrapper->data_type = FASTXSL_XPATHOBJ;
 			ShmCache_UseAllocationFunctions();
 inshm = 1;
 			FASTXSL_G(tmp_allocated_size) = 0;
+			valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
+			HACK_xsltDocumentFunction(ctxt, nargs);
 			ss_wrapper->data.op = xmlXPathObjectCopy(ctxt->value);
+			valuePop(ctxt);
 			ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
 inshm = 0;
 			Xml_UseAllocationFunctions();
-			valuePop(ctxt);
 			ss_wrapper->mtime = sb.st_mtime;
 			mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
 			rv = fl_hash_add(FASTXSL_G(cache)->table, ss_filename, ss_filename_len, ss_wrapper);
@@ -488,23 +482,17 @@ inshm = 0;
 					int rv;
 					ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
         				ss_wrapper->data_type = FASTXSL_STYLESHEET;
-					if(FASTXSL_G(replace_document_function)) {
-						func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"original_document");
-					}
-					else {
-						func = xmlXPathFunctionLookup(ctxt->context, (const xmlChar *)"document");
-					}
-					valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
-					func(ctxt, nargs);
 					ShmCache_UseAllocationFunctions();
 inshm = 1;
 					FASTXSL_G(tmp_allocated_size) = 0;
+					valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
+					HACK_xsltDocumentFunction(ctxt, nargs);
 					ss_wrapper->data.op = xmlXPathObjectCopy(ctxt->value);
+					valuePop(ctxt);
+					ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
 inshm = 0;
 					Xml_UseAllocationFunctions();
-					valuePop(ctxt);
 					ss_wrapper->mtime = sb.st_mtime;
-					ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
 					mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
 					rv = fl_hash_add(FASTXSL_G(cache)->table, ss_filename, ss_filename_len, ss_wrapper);
 					mm_unlock(FASTXSL_G(cache)->mm);

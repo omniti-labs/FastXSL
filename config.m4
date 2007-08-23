@@ -60,7 +60,7 @@ if test "$PHP_FASTXSL" != "no"; then
   AC_DEFINE(HAVE_FASTXSLLIB,1,[ ])
   PHP_SUBST(FASTXSL_SHARED_LIBADD)
 
-  PHP_NEW_EXTENSION(fastxsl, fastxsl.c fl_hash.c, $ext_shared)
+  PHP_NEW_EXTENSION(fastxsl, fastxsl.c fl_hash.c xsltDocHack.c, $ext_shared)
 fi
 
 PHP_ARG_WITH(exslt, for DOM EXSLT support,
