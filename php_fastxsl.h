@@ -111,6 +111,28 @@ typedef struct {
 	long      tmp_allocated_size;
 } zend_fastxsl_globals;
 
+#if defined(F_SETLK) && !defined(linux)
+#define ACQUIRE(lockfd) do { \
+	struct flock lock; \
+	lock.l_start = 0; \
+	lock.l_whence = SEEK_SET; \
+	lock.l_len = 0; \
+	lock.l_type = F_WRLCK; \
+	fcntl((lockfd), F_SETLKW, &lock); \
+} while(0)
+#define RELEASE(lockfd) do { \
+	struct flock lock; \
+	lock.l_start = 0; \
+	lock.l_whence = SEEK_SET; \
+	lock.l_len = 0; \
+	lock.l_type = F_UNLCK; \
+	fcntl((lockfd), F_SETLK, &lock); \
+} while(0)
+#else
+#define ACQUIRE(lockfd) flock((lockfd), LOCK_EX)
+#define RELEASE(lockfd) flock((lockfd), LOCK_UN)
+#endif
+
 #define PHP_FASTXSL_VERSION "1.0"
 
 #ifdef ZTS

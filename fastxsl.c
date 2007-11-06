@@ -31,6 +31,7 @@
 #include <libxml/catalog.h>
 #include <libxml/xpathInternals.h>
 #include <libxml/xpath.h>
+#include <libxml/uri.h>
 #include <libxslt/xslt.h>
 #include <libxslt/xsltInternals.h>
 #include <libxslt/transform.h>
@@ -46,6 +47,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+
 #include "fl_hash.h"
 #include "php.h"
 #include "php_ini.h"
@@ -53,8 +55,6 @@
 #include "php_fastxsl.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(fastxsl)
-
-static int inshm = 0;
 
 static int le_fastxsl_stylesheet;
 #define le_fastxsl_stylesheet_name "FastXSL Stylesheet"
@@ -68,6 +68,8 @@ void fastxsl_errorfunc(void *ctx, const char *msg, ...);
 static void ShmCache_Stylesheet_Free(php_ss_wrapper *wrapper TSRMLS_DC);
 static void _SS_Wrapper_Dtor(php_ss_wrapper *wrapper);
 static void _XD_Wrapper_Dtor(php_xd_wrapper *wrapper);
+
+extern void HACK_xsltDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs);
 
 static php_ss_wrapper *
 SS_Wrapper_Alloc(int shared TSRMLS_DC)
@@ -116,9 +118,6 @@ void
 ShmCache_Free(void *ptr)
 {
 	TSRMLS_FETCH();
-#ifdef DEBUGMM
-	if(!inshm) assert(0);
-#endif
 	FASTXSL_G(tmp_allocated_size) -= mm_sizeof(FASTXSL_G(cache)->mm, ptr);
 	mm_free(FASTXSL_G(cache)->mm, ptr);
 }
@@ -128,9 +127,6 @@ ShmCache_Malloc(size_t size)
 {
 	void *ptr;
 	TSRMLS_FETCH();
-#ifdef DEBUGMM
-	if(!inshm) assert(0);
-#endif
 	ptr = mm_malloc(FASTXSL_G(cache)->mm, size);
 	if (!ptr) {
 		php_error(E_ERROR, "Ran out of Shared memory to allocate data for FastXSL cache, "
@@ -149,9 +145,6 @@ ShmCache_Calloc(size_t nmemb, size_t size)
 {
 	void *ptr;
 
-#ifdef DEBUGMM
-	if(!inshm) assert(0);
-#endif
 	ptr = ShmCache_Malloc(nmemb * size);
 	memset(ptr, 0, nmemb * size);
 	return ptr;
@@ -164,9 +157,6 @@ ShmCache_Realloc(void *ptr, size_t size)
 	long  oldsize;
 	TSRMLS_FETCH();
 
-#ifdef DEBUGMM
-	if(!inshm) assert(0);
-#endif
 	oldsize = mm_sizeof(FASTXSL_G(cache)->mm, ptr);
 	newptr = mm_realloc(FASTXSL_G(cache)->mm, ptr, size);
 	if (!newptr) {
@@ -187,9 +177,6 @@ ShmCache_Strdup(const char *string)
 	char *newstring;
 	int   string_length;
 
-#ifdef DEBUGMM
-	if(!inshm) assert(0);
-#endif
 	string_length = strlen(string);
 	newstring = ShmCache_Malloc(string_length + 1);
 	memcpy(newstring, string, string_length);
@@ -290,12 +277,8 @@ ShmCache_Stylesheet_Free(php_ss_wrapper *wrapper TSRMLS_DC)
 {
 	if (wrapper->data_type == FASTXSL_STYLESHEET) {
 		if (wrapper->data.ss) {
-			//xmlCleanupParserr();
 			ShmCache_UseAllocationFunctions();
-inshm = 1;
 			xsltFreeStylesheet(wrapper->data.ss);
-inshm = 0;
-			//xmlCleanupParserr();
 			Xml_UseAllocationFunctions();
 		}
 		mm_free(FASTXSL_G(cache)->mm, wrapper);
@@ -307,12 +290,8 @@ ShmCache_XPathObject_Free(php_ss_wrapper *wrapper TSRMLS_DC)
 {
 	if (wrapper->data_type == FASTXSL_XPATHOBJ) {
 		if (wrapper->data.ss) {
-			//xmlCleanupParserr();
 			ShmCache_UseAllocationFunctions();
-inshm = 1;
 			xmlXPathFreeObject(wrapper->data.op);
-inshm = 0;
-			//xmlCleanupParserr();
 			Xml_UseAllocationFunctions();
 		}
 		mm_free(FASTXSL_G(cache)->mm, wrapper);
@@ -355,18 +334,11 @@ fastxsl_CachedDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
 	xmlXPathObjectPtr idoc, obj;
 	xsltTransformContextPtr tctxt;
 	xmlChar *base = NULL, *URI;
-	int lockfd;
 	char *ss_filename;
 	int ss_filename_len;
 	struct stat sb;
 	php_ss_wrapper *ss_wrapper;
-#ifdef F_SETLK
-	struct flock lock;
 
-	lock.l_start = 0;
-	lock.l_whence = SEEK_SET;
-	lock.l_len = 0;
-#endif
 	xmlXPathStringFunction(ctxt, 1);
 	if (ctxt->value->type != XPATH_STRING) {
 		xsltTransformError(xsltXPathGetTransformContext(ctxt), NULL, NULL,
@@ -392,90 +364,102 @@ fastxsl_CachedDocumentFunction(xmlXPathParserContextPtr ctxt, int nargs)
 	ss_filename = alloca(ss_filename_len + 1);
 	strcpy(ss_filename, (char *)URI);
 
-	lockfd = open(ss_filename, O_RDONLY);
-	if(lockfd < 0) {
-		/* FIXME non-existent file */
-		goto error;
-	}
-	if (!FASTXSL_G(nostat)) {
-		if (fstat(lockfd, &sb) == -1) {
-			ShmCache_UseAllocationFunctions();
-inshm = 1;
-			ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
-inshm = 0;
-			Xml_UseAllocationFunctions();
-			close(lockfd);
-			goto error;
-		}
-	} else {
-		sb.st_mtime = 0;
-	}
-#ifdef F_SETLK
-	lock.l_type = F_WRLCK;
-	fcntl(lockfd, F_SETLKW, &lock);
-#else
-	flock(lockfd, LOCK_EX);
-#endif
+	sb.st_mtime = 0;
+
 	mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RW);
 	ss_wrapper = fl_hash_find(FASTXSL_G(cache)->table, ss_filename, ss_filename_len);
+	if(ss_wrapper) ss_wrapper->hits++;
 	mm_unlock(FASTXSL_G(cache)->mm);
+
 	if (!ss_wrapper) {
-	        ss_wrapper = SS_Wrapper_Alloc(FASTXSL_SHARED_ALLOC TSRMLS_CC);
-        	if(ss_wrapper) {
-			int rv;
-			ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
-        		ss_wrapper->data_type = FASTXSL_XPATHOBJ;
-			ShmCache_UseAllocationFunctions();
-inshm = 1;
-			FASTXSL_G(tmp_allocated_size) = 0;
-			valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
-			HACK_xsltDocumentFunction(ctxt, nargs);
-			ss_wrapper->data.op = xmlXPathObjectCopy(ctxt->value);
-			valuePop(ctxt);
-			ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
-inshm = 0;
-			Xml_UseAllocationFunctions();
-			ss_wrapper->mtime = sb.st_mtime;
-			mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
-			rv = fl_hash_add(FASTXSL_G(cache)->table, ss_filename, ss_filename_len, ss_wrapper);
-			mm_unlock(FASTXSL_G(cache)->mm);
-			if(rv == 0) {
-				/* we failed */
-				php_ss_wrapper *fallback;
+		int lockfd;
+		lockfd = open(ss_filename, O_RDONLY);
+		if(lockfd < 0) goto error;
+
+                /* It would be really bad if we longjmp'd out with the lock */
+		zend_set_timeout(0);
+		/* Lock, but we may not be the only one... */
+        	ACQUIRE(lockfd);
+		/* We have the lock, lets see if someone beat us here */
+		mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RW);
+		ss_wrapper = fl_hash_find(FASTXSL_G(cache)->table, ss_filename, ss_filename_len);
+		if(ss_wrapper) ss_wrapper->hits++;
+		mm_unlock(FASTXSL_G(cache)->mm);
+
+		if(ss_wrapper) {
+			/* Someone beat us */
+		}
+		else {
+	        	ss_wrapper = SS_Wrapper_Alloc(FASTXSL_SHARED_ALLOC TSRMLS_CC);
+        		if(ss_wrapper) {
+				int rv;
+				if (!FASTXSL_G(nostat)) {
+					if (fstat(lockfd, &sb) == -1) {
+						ShmCache_UseAllocationFunctions();
+						ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
+						Xml_UseAllocationFunctions();
+						RELEASE(lockfd);
+						close(lockfd);
+						goto error;
+					}
+				}
+				ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
+		 		ss_wrapper->data_type = FASTXSL_XPATHOBJ;
+				ShmCache_UseAllocationFunctions();
+				FASTXSL_G(tmp_allocated_size) = 0;
+				valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
+				HACK_xsltDocumentFunction(ctxt, nargs);
+				ss_wrapper->data.op = xmlXPathObjectCopy(ctxt->value);
+				valuePop(ctxt);
+				ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
+				Xml_UseAllocationFunctions();
+				ss_wrapper->mtime = sb.st_mtime;
 				mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
-				fallback = fl_hash_find(FASTXSL_G(cache)->table, ss_filename, ss_filename_len);
+				rv = fl_hash_add(FASTXSL_G(cache)->table, ss_filename, ss_filename_len, ss_wrapper);
 				mm_unlock(FASTXSL_G(cache)->mm);
-				if(fallback && fallback->data_type == FASTXSL_XPATHOBJ) {
-					ShmCache_UseAllocationFunctions();
-inshm = 1;
-					ShmCache_XPathObject_Free(ss_wrapper);
-inshm = 0;
-					Xml_UseAllocationFunctions();
-					ss_wrapper = fallback;
+				if(rv == 0) {
+					/* we failed */
+					php_ss_wrapper *fallback;
+					mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
+					fallback = fl_hash_find(FASTXSL_G(cache)->table, ss_filename, ss_filename_len);
+					mm_unlock(FASTXSL_G(cache)->mm);
+					if(fallback && fallback->data_type == FASTXSL_XPATHOBJ) {
+						ShmCache_UseAllocationFunctions();
+						ShmCache_XPathObject_Free(ss_wrapper);
+						Xml_UseAllocationFunctions();
+						ss_wrapper = fallback;
+					} else {
+					}
 				} else {
 				}
-			} else {
 			}
 		}
+		RELEASE(lockfd);
+		close(lockfd);
 		if (!ss_wrapper) {
-#ifdef F_SETLK
-			lock.l_type = F_UNLCK;
-			fcntl(lockfd, F_SETLK, &lock);
-#else
-			flock(lockfd, LOCK_UN);
-#endif
-			close(lockfd);
-			//xmlCleanupParserr();
 			Xml_UseAllocationFunctions();
 			goto error;
 		}
-	} else {
+	}
+	else {
 		if (!FASTXSL_G(nostat)) {
-			if (ss_wrapper->mtime != sb.st_mtime) {
+			int lockfd;
+			lockfd = open(ss_filename, O_RDONLY);
+			if(lockfd < 0) goto error;
+
+			if (fstat(lockfd, &sb) == -1) {
 				ShmCache_UseAllocationFunctions();
-inshm = 1;
 				ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
-inshm = 0;
+				Xml_UseAllocationFunctions();
+				close(lockfd);
+				goto error;
+			}
+			if (ss_wrapper->mtime != sb.st_mtime) {
+                		/* It would be really bad if we longjmp'd out with the lock */
+				zend_set_timeout(0);
+				ACQUIRE(lockfd);
+				ShmCache_UseAllocationFunctions();
+				ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
 				Xml_UseAllocationFunctions();
 	        		ss_wrapper = SS_Wrapper_Alloc(FASTXSL_SHARED_ALLOC TSRMLS_CC);
         			if(ss_wrapper) {
@@ -483,14 +467,12 @@ inshm = 0;
 					ss_wrapper->alloc_type = FASTXSL_SHMALLOC;
         				ss_wrapper->data_type = FASTXSL_STYLESHEET;
 					ShmCache_UseAllocationFunctions();
-inshm = 1;
 					FASTXSL_G(tmp_allocated_size) = 0;
 					valuePush(ctxt, xmlXPathObjectCopy(ctxt->value));
 					HACK_xsltDocumentFunction(ctxt, nargs);
 					ss_wrapper->data.op = xmlXPathObjectCopy(ctxt->value);
 					valuePop(ctxt);
 					ss_wrapper->allocsize = FASTXSL_G(tmp_allocated_size);
-inshm = 0;
 					Xml_UseAllocationFunctions();
 					ss_wrapper->mtime = sb.st_mtime;
 					mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
@@ -504,9 +486,7 @@ inshm = 0;
 						mm_unlock(FASTXSL_G(cache)->mm);
 						if(fallback && fallback->data_type == FASTXSL_XPATHOBJ) {
 							ShmCache_UseAllocationFunctions();
-inshm = 1;
 							ShmCache_XPathObject_Free(ss_wrapper);
-inshm = 0;
 							Xml_UseAllocationFunctions();
 							ss_wrapper = fallback;
 						} else {
@@ -514,30 +494,15 @@ inshm = 0;
 					} else {
 					}
 				}
-				//xmlCleanupParserr();
+				RELEASE(lockfd);
+				close(lockfd);
 				if (!ss_wrapper) {
-#ifdef F_SETLK
-					lock.l_type = F_UNLCK;
-					fcntl(lockfd, F_SETLK, &lock);
-#else
-					flock(lockfd, LOCK_UN);
-#endif
-					close(lockfd);
 					goto error;
 				}
 			}
 		}
 	}
-	ss_wrapper->hits++;
-	//xmlCleanupParserr();
 	Xml_UseAllocationFunctions();
-#ifdef F_SETLK
-	lock.l_type = F_UNLCK;
-	fcntl(lockfd, F_SETLK, &lock);
-#else
-	flock(lockfd, LOCK_UN);
-#endif
-	close(lockfd);
 
 	valuePop(ctxt);
 	valuePush(ctxt, xmlXPathObjectCopy(ss_wrapper->data.op));
@@ -565,7 +530,15 @@ PrmCache_Stylesheet_ParseAndStore(char *filename, size_t filename_len, int mtime
 	wrapper->mtime = mtime;
 	
 	if(fl_hash_add(FASTXSL_G(cache)->prmtable, filename, filename_len, wrapper) == 0) {
-		/* we failed, not much we can do here, and no race */
+		/* we failed */
+		php_ss_wrapper *fallback;
+		mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RD);
+		fallback = fl_hash_find(FASTXSL_G(cache)->table, filename, filename_len);
+		mm_unlock(FASTXSL_G(cache)->mm);
+		if(fallback) {
+			ShmCache_Stylesheet_Free(wrapper);
+			wrapper = fallback;
+		}
 	}
 
 	return wrapper;
@@ -669,14 +642,10 @@ PHP_FUNCTION(fastxsl_shmcache_getstatistics)
 	add_assoc_zval(return_value, "files", files_array);
 
 	add_assoc_long(return_value, "apparent_allocated", allocated_bytes);
-	add_assoc_long(return_value, "allocated", 
-          (FASTXSL_G(memalloc)?FASTXSL_G(memalloc):mm_maxsize()) - mm_available(FASTXSL_G(cache)->mm));
-	add_assoc_long(return_value, "shm_size", (long) FASTXSL_G(memalloc)?FASTXSL_G(memalloc):mm_maxsize());
+	add_assoc_long(return_value, "real_allocated", mm_maxsize() - mm_available(FASTXSL_G(cache)->mm));
+	add_assoc_long(return_value, "shm_maxsize", (long) mm_maxsize());
 	mm_unlock(FASTXSL_G(cache)->mm);
 }
-
-#endif
-/* }}} */
 
 /* {{{ proto array fastxsl_version(void)
    Returns the version number */
@@ -688,6 +657,12 @@ PHP_FUNCTION(fastxsl_version)
 	RETURN_STRING(PHP_FASTXSL_VERSION, 1);
 }
 
+PHP_FUNCTION(fastxsl_xmlMemoryDump)
+{
+  chdir("/tmp");
+  xmlMemDisplay(stderr);
+}
+#endif
 /* }}} */
 
 /* {{{ proto resource fastxsl_stylesheet_parsefile(string filename)
@@ -730,7 +705,7 @@ PHP_FUNCTION(fastxsl_xml_parsestring)
 	wrapper = XD_Wrapper_Alloc();
 	wrapper->alloc_type = FASTXSL_PRMALLOC;
 	Xml_UseAllocationFunctions();
-	wrapper->xd = xmlParseDoc((xmlChar *) text);
+	wrapper->xd = xmlParseDoc((unsigned char *)text);
 	if (!wrapper->xd) {
 		_XD_Wrapper_Dtor(wrapper);
 		RETURN_FALSE;
@@ -772,7 +747,7 @@ ParseTransformParameters(zval *z_parameters, char ***parameters TSRMLS_DC)
 	HashTable     *h_parameters;
 	HashPosition   pos;
 	char          *key;
-	uint           key_length;
+	unsigned int   key_length;
 	unsigned long  ival;
 	int            index = 0;
 
@@ -828,15 +803,6 @@ PHP_FUNCTION(fastxsl_shmcache_transform)
 	zval             *z_xd_wrapper;
 	zval             *z_parameters;
 	struct stat       sb;
-	int lockfd;
-#ifdef F_SETLK
-	struct flock lock;
-
-	lock.l_start = 0;
-	lock.l_whence = SEEK_SET;
-	lock.l_len = 0;
-#endif
-
 	
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz|z", &ss_filename, &ss_filename_len,
 				&z_xd_wrapper, &z_parameters) == FAILURE) {
@@ -854,90 +820,79 @@ PHP_FUNCTION(fastxsl_shmcache_transform)
 
 	result_wrapper = XD_Wrapper_Alloc();
 	result_wrapper->alloc_type = FASTXSL_PRMALLOC;
-	lockfd = open(ss_filename, O_RDONLY);
-	if(lockfd < 0) {
-		/* FIXME non-existent file */
-		RETURN_FALSE;
-	}
-	if (!FASTXSL_G(nostat)) {
-		if (fstat(lockfd, &sb) == -1) {
-			ShmCache_UseAllocationFunctions();
-inshm = 1;
-			ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
-inshm = 0;
-			Xml_UseAllocationFunctions();
-			_XD_Wrapper_Dtor(result_wrapper);
-			free(parameters);
-			close(lockfd);
-			RETURN_FALSE;
-		}
-	} else {
-		sb.st_mtime = 0;
-	}
-#ifdef F_SETLK
-	lock.l_type = F_WRLCK;
-	fcntl(lockfd, F_SETLKW, &lock);
-#else
-	flock(lockfd, LOCK_EX);
-#endif
+
+	sb.st_mtime = 0;
+
 	mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RW);
 	ss_wrapper = fl_hash_find(FASTXSL_G(cache)->table, ss_filename, ss_filename_len);
+	if(ss_wrapper) ss_wrapper->hits++;
 	mm_unlock(FASTXSL_G(cache)->mm);
+
 	if (!ss_wrapper) {
-		ShmCache_UseAllocationFunctions();
-inshm = 1;
-		ss_wrapper = ShmCache_Stylesheet_ParseAndStore(ss_filename, ss_filename_len, sb.st_mtime);
-inshm = 0;
-		if (!ss_wrapper) {
-#ifdef F_SETLK
-			lock.l_type = F_UNLCK;
-			fcntl(lockfd, F_SETLK, &lock);
-#else
-			flock(lockfd, LOCK_UN);
-#endif
-			close(lockfd);
-			//xmlCleanupParserr();
-			Xml_UseAllocationFunctions();
-			_XD_Wrapper_Dtor(result_wrapper);
-			free(parameters);
-			RETURN_FALSE;
+		int lockfd;
+		lockfd = open(ss_filename, O_RDONLY);
+		if(lockfd < 0) RETURN_FALSE;
+
+                /* It would be really bad if we longjmp'd out with the lock */
+		zend_set_timeout(0);
+		/* Create a wait queue -- no herds */
+		ACQUIRE(lockfd);
+
+		/* One last check */
+		mm_lock(FASTXSL_G(cache)->mm, MM_LOCK_RW);
+		ss_wrapper = fl_hash_find(FASTXSL_G(cache)->table, ss_filename, ss_filename_len);
+		if(ss_wrapper) ss_wrapper->hits++;
+		mm_unlock(FASTXSL_G(cache)->mm);
+
+		if(ss_wrapper) {
+			/* Someone beat us to it */
 		}
-	} else {
-		if (!FASTXSL_G(nostat)) {
-			if (ss_wrapper->mtime != sb.st_mtime) {
-				//xmlCleanupParserr();
+		else {
+			if (fstat(lockfd, &sb) != -1) {
 				ShmCache_UseAllocationFunctions();
-inshm = 1;
-				ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
-				ss_wrapper = ShmCache_Stylesheet_ParseAndStore(ss_filename, ss_filename_len, sb.st_mtime TSRMLS_CC);
-inshm = 0;
-				//xmlCleanupParserr();
+				ss_wrapper = ShmCache_Stylesheet_ParseAndStore(ss_filename, ss_filename_len, sb.st_mtime);
 				Xml_UseAllocationFunctions();
-				if (!ss_wrapper) {
-#ifdef F_SETLK
-					lock.l_type = F_UNLCK;
-					fcntl(lockfd, F_SETLK, &lock);
-#else
-					flock(lockfd, LOCK_UN);
-#endif
-					close(lockfd);
-					_XD_Wrapper_Dtor(result_wrapper);
-					free(parameters);
-					RETURN_FALSE;
-				}
+			}
+			if (!ss_wrapper) {
+				RELEASE(lockfd);
+				close(lockfd);
+				goto error;
 			}
 		}
+		RELEASE(lockfd);
+		close(lockfd);
+	} else {
+		if (!FASTXSL_G(nostat)) {
+			int lockfd;
+			lockfd = open(ss_filename, O_RDONLY);
+			if(lockfd < 0) RETURN_FALSE;
+			
+			if (fstat(lockfd, &sb) == -1) {
+				ShmCache_UseAllocationFunctions();
+				ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
+				Xml_UseAllocationFunctions();
+				close(lockfd);
+				goto error;
+			}
+
+                	/* It would be really bad if we longjmp'd out with the lock */
+			zend_set_timeout(0);
+			ACQUIRE(lockfd);
+			if (ss_wrapper->mtime != sb.st_mtime) {
+				ShmCache_UseAllocationFunctions();
+				ShmCache_Document_Delete(ss_filename, ss_filename_len TSRMLS_CC);
+				ss_wrapper = ShmCache_Stylesheet_ParseAndStore(ss_filename, ss_filename_len, sb.st_mtime TSRMLS_CC);
+				Xml_UseAllocationFunctions();
+				if (!ss_wrapper) {
+					RELEASE(lockfd);
+					close(lockfd);
+					goto error;
+				}
+			}
+			RELEASE(lockfd);
+			close(lockfd);
+		}
 	}
-	ss_wrapper->hits++;
-	//xmlCleanupParserr();
-	Xml_UseAllocationFunctions();
-#ifdef F_SETLK
-	lock.l_type = F_UNLCK;
-	fcntl(lockfd, F_SETLK, &lock);
-#else
-	flock(lockfd, LOCK_UN);
-#endif
-	close(lockfd);
 
 	ctxt = xsltNewTransformContext(ss_wrapper->data.ss, xd_wrapper->xd);
 #ifdef FASTXSL_MM
@@ -964,6 +919,13 @@ inshm = 0;
 	}	
 	
 	ZEND_REGISTER_RESOURCE(return_value, result_wrapper, le_fastxsl_document);
+	return;
+
+	error:
+		Xml_UseAllocationFunctions();
+		if (parameters) free(parameters);
+		_XD_Wrapper_Dtor(result_wrapper);
+		RETURN_FALSE;
 }
 #endif
 /* }}} */
@@ -1256,12 +1218,13 @@ function_entry fastxsl_functions[] = {
 	PHP_FE(fastxsl_stylesheet_parsefile,         NULL)
 	PHP_FE(fastxsl_xml_parsefile,                NULL)
 	PHP_FE(fastxsl_xml_parsestring,              NULL)
+	PHP_FE(fastxsl_version,                      NULL)
 #ifdef FASTXSL_MM
 	PHP_FE(fastxsl_shmcache_transform,           NULL)
 	PHP_FE(fastxsl_shmcache_tostring,            NULL)
 	PHP_FE(fastxsl_shmcache_getstatistics,       NULL)
+	PHP_FE(fastxsl_xmlMemoryDump,                NULL)
 #endif
-	PHP_FE(fastxsl_version,                      NULL)
 	PHP_FE(fastxsl_prmcache_transform,           NULL)
 	PHP_FE(fastxsl_nocache_transform,            NULL)
 	PHP_FE(fastxsl_nocache_profile,              NULL)
@@ -1304,18 +1267,14 @@ _SS_Wrapper_Dtor(php_ss_wrapper *wrapper)
 		} else {
 			Xml_UseAllocationFunctions();
 		}
-		inshm = 1;
 		xsltFreeStylesheet(wrapper->data.ss);
-		inshm = 0;
 		if(wrapper->alloc_type == FASTXSL_SHMALLOC) {
 			//xmlCleanupParserr();
 			Xml_UseAllocationFunctions();
 		}
 	}
 	if(wrapper->persistant) {
-#ifdef FASTXSL_MM
 		mm_free(FASTXSL_G(cache)->mm, wrapper);
-#endif
 	} else {
 		free(wrapper);
 	}
@@ -1338,9 +1297,7 @@ static void _XD_Wrapper_Dtor(php_xd_wrapper *wrapper) {
 		} else {
 			Xml_UseAllocationFunctions();
 		}
-inshm = 1;
 		xmlFreeDoc(wrapper->xd);
-inshm = 0;
 		Xml_UseAllocationFunctions();
 	}
 	free(wrapper);
@@ -1560,7 +1517,7 @@ cleanup:
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("fastxsl.shmpath", "/tmp/fastxsl_mem", PHP_INI_SYSTEM, OnUpdateString, shmpath, zend_fastxsl_globals, fastxsl_globals)
 	STD_PHP_INI_BOOLEAN("fastxsl.nostat", "0", PHP_INI_ALL, OnUpdateLong, nostat, zend_fastxsl_globals, fastxsl_globals) 
-	STD_PHP_INI_BOOLEAN("fastxsl.replace_document_function", "0", PHP_INI_ALL, OnUpdateLong, replace_document_function, zend_fastxsl_globals, fastxsl_globals) 
+	STD_PHP_INI_BOOLEAN("fastxsl.replace_document_function", "0", PHP_INI_ALL, OnUpdateLong, replace_document_function, zend_fastxsl_globals, fastxsl_globals)
 	STD_PHP_INI_BOOLEAN("fastxsl.memalloc", "0", PHP_INI_SYSTEM, OnUpdateLong, memalloc, zend_fastxsl_globals, fastxsl_globals) 
 	STD_PHP_INI_BOOLEAN("fastxsl.register_functions", "0", PHP_INI_ALL, OnUpdateLong, register_functions, zend_fastxsl_globals, fastxsl_globals) 
 PHP_INI_END()
@@ -1606,7 +1563,6 @@ PHP_MINIT_FUNCTION(fastxsl)
 	xmlMemGet(&free_ptr, &malloc_ptr, &realloc_ptr, &strdup_ptr);
 	//xmlCleanupParserr();
 	ShmCache_UseAllocationFunctions();
-inshm = 1;
 	xsltRegisterAllExtras();
 #if HAVE_DOMEXSLT
 	exsltRegisterAll();
@@ -1624,8 +1580,10 @@ inshm = 1;
 					   (const xmlChar *) "http://php.net/fastxsl",
 					   fastxsl_ext_function);
 	}
+	xsltRegisterExtModuleFunction ((const xmlChar *) "cached_document",
+				   (const xmlChar *) "http://php.net/fastxsl/cached_document",
+				   fastxsl_CachedDocumentFunction);
 	//xmlCleanupParserr();
-inshm = 0;
 	Xml_UseAllocationFunctions();
 	return SUCCESS;
 }
